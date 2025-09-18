@@ -52,14 +52,6 @@ check_system_requirements() {
 
 check_system_requirements
 
-# Show CachyOS information
-show_cachyos_info
-
-# Show shell choice menu for Fish users (must come before show_menu)
-if is_fish_shell; then
-  show_shell_choice_menu
-fi
-
 # Show installation mode menu
 show_menu
 export INSTALL_MODE
@@ -92,6 +84,9 @@ else
 fi
 
 # Run all installation steps with error handling
+# Show CachyOS information now that user has chosen installation mode
+show_cachyos_info
+
 # Step 1: System Preparation
 if command -v gum >/dev/null 2>&1; then
   gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 1: System Preparation"
@@ -107,6 +102,16 @@ step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh" || log_
 if command -v gum >/dev/null 2>&1; then
   gum style --foreground 46 "✓ Step 1 completed"
   echo ""
+else
+  echo -e "${GREEN}✓ Step 1 completed${RESET}"
+fi
+
+# Show shell choice menu for Fish users before shell setup
+if is_fish_shell; then
+  show_shell_choice_menu
+fi
+
+if command -v gum >/dev/null 2>&1; then
   gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 2: Shell Setup"
   if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
     gum style --foreground 226 "🐚 Converting Fish to ZSH with Oh-My-Zsh..."
@@ -116,7 +121,6 @@ if command -v gum >/dev/null 2>&1; then
     gum style --foreground 226 "🐚 Setting up shell configuration..."
   fi
 else
-  echo -e "${GREEN}✓ Step 1 completed${RESET}"
   echo -e "${CYAN}Step 2: Shell Setup${RESET}"
   if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
     echo -e "${YELLOW}🐚 Converting Fish to ZSH with Oh-My-Zsh...${RESET}"
@@ -229,29 +233,12 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
     echo -e "${YELLOW}🧹 Cleaning up installer files...${RESET}"
   fi
 
-  # Clean up installer files completely
-  local installer_path="$SCRIPT_DIR"
-  local installer_name="$(basename "$SCRIPT_DIR")"
-
-  if command -v gum >/dev/null 2>&1; then
-    gum style --foreground 226 "🗑️  Removing CachyInstaller files from system..."
-  else
-    echo -e "${YELLOW}🗑️  Removing CachyInstaller files from system...${RESET}"
-  fi
-
   cd "$SCRIPT_DIR/.."
-  if rm -rf "$installer_name" 2>/dev/null; then
-    if command -v gum >/dev/null 2>&1; then
-      gum style --foreground 46 "✓ CachyInstaller completely removed from system"
-    else
-      echo -e "${GREEN}✓ CachyInstaller completely removed from system${RESET}"
-    fi
+  rm -rf "$(basename "$SCRIPT_DIR")"
+  if command -v gum >/dev/null 2>&1; then
+    gum style --foreground 46 "✓ Installer files cleaned up"
   else
-    if command -v gum >/dev/null 2>&1; then
-      gum style --foreground 196 "⚠️  Could not remove installer files - please delete manually: $installer_path"
-    else
-      echo -e "${YELLOW}⚠️  Could not remove installer files - please delete manually: $installer_path${RESET}"
-    fi
+    echo -e "${GREEN}✓ Installer files cleaned up${RESET}"
   fi
 
   echo ""

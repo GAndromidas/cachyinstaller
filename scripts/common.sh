@@ -255,9 +255,15 @@ show_shell_choice_menu() {
 
 # Show CachyOS specific information
 show_cachyos_info() {
-  echo -e "\n${CYAN}═══ CachyOS Gaming Installation ═══${RESET}"
+  echo -e "\n${CYAN}═══ CachyOS Gaming Installation (${INSTALL_MODE^} Mode) ═══${RESET}"
   echo -e "${GREEN}What will be installed:${RESET}"
-  echo -e "  • ${CYAN}Essential applications and tools${RESET}"
+
+  if [[ "${INSTALL_MODE}" == "minimal" ]]; then
+    echo -e "  • ${CYAN}Essential tools only (faster installation)${RESET}"
+  else
+    echo -e "  • ${CYAN}Complete setup with essential packages${RESET}"
+  fi
+
   echo -e "  • ${CYAN}Gaming packages (Steam, Lutris, Wine, etc.) - Always included${RESET}"
   echo -e "  • ${CYAN}Security setup (Fail2ban, UFW)${RESET}"
   echo -e "  • ${CYAN}System services and optimizations${RESET}"
@@ -267,7 +273,7 @@ show_cachyos_info() {
   elif [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
     echo -e "  • ${GREEN}Fish shell enhancement${RESET} - Configuration preserved"
   else
-    echo -e "  • ${YELLOW}Shell setup${RESET} - You will choose Fish→ZSH or Fish enhancement"
+    echo -e "  • ${YELLOW}Shell setup and optimization${RESET}"
   fi
 
   echo -e ""

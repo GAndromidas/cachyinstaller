@@ -26,13 +26,7 @@ update_system() {
   fi
 }
 
-install_helper_packages() {
-  step "Installing helper utilities"
-  local helper_packages=("${HELPER_UTILS[@]}")
-
-  log_info "Installing ${#helper_packages[@]} helper utilities..."
-  install_packages_quietly "${helper_packages[@]}"
-}
+# Helper packages are now installed earlier in install.sh after menu selection
 
 install_shell_packages() {
   step "Installing shell packages"
@@ -83,7 +77,6 @@ main() {
 
   check_prerequisites || { log_error "Prerequisites check failed"; return 1; }
   update_system || { log_error "System update failed"; return 1; }
-  install_helper_packages || { log_error "Helper packages installation failed"; return 1; }
   install_shell_packages || { log_error "Shell packages installation failed"; return 1; }
   set_sudo_pwfeedback || { log_warning "Sudo feedback setup had issues"; }
   generate_locales || { log_warning "Locale generation had issues"; }

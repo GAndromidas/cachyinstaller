@@ -33,7 +33,13 @@ get_helper_utils() {
   echo "${utils[@]}"
 }
 
-HELPER_UTILS=($(get_helper_utils))
+# Initialize HELPER_UTILS as empty - will be populated when needed
+HELPER_UTILS=()
+
+# Function to populate HELPER_UTILS based on current shell choice
+populate_helper_utils() {
+  HELPER_UTILS=($(get_helper_utils))
+}
 
 # Ensure critical variables are defined
 : "${HOME:=/home/$USER}"

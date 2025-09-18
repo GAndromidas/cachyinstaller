@@ -56,6 +56,45 @@ check_system_requirements
 show_menu
 export INSTALL_MODE
 
+# Install helper utilities right after menu selection
+if command -v gum >/dev/null 2>&1; then
+  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Installing Helper Utilities"
+  gum style --foreground 226 "📦 Installing essential helper utilities first..."
+else
+  echo -e "${CYAN}Installing Helper Utilities${RESET}"
+  echo -e "${YELLOW}📦 Installing essential helper utilities first...${RESET}"
+fi
+
+# Source common.sh to get access to helper functions
+source "$SCRIPTS_DIR/common.sh"
+
+# Populate and install helper utilities
+populate_helper_utils
+helper_packages=("${HELPER_UTILS[@]}")
+
+if [[ ${#helper_packages[@]} -gt 0 ]]; then
+  log_info "Installing ${#helper_packages[@]} helper utilities: ${helper_packages[*]}"
+  if sudo pacman -S --noconfirm --needed "${helper_packages[@]}"; then
+    log_success "Helper utilities installed successfully"
+    if command -v gum >/dev/null 2>&1; then
+      gum style --foreground 46 "✓ Helper utilities installed"
+    else
+      echo -e "${GREEN}✓ Helper utilities installed${RESET}"
+    fi
+  else
+    log_error "Failed to install some helper utilities"
+    if command -v gum >/dev/null 2>&1; then
+      gum style --foreground 196 "⚠️  Some helper utilities failed to install"
+    else
+      echo -e "${RED}⚠️  Some helper utilities failed to install${RESET}"
+    fi
+  fi
+else
+  log_error "No helper utilities to install"
+fi
+
+echo ""
+
 # Use gum for beautiful sudo prompt if available
 if command -v gum >/dev/null 2>&1; then
   gum style --foreground 226 "Please enter your sudo password to begin the installation:"

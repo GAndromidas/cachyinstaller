@@ -92,7 +92,6 @@ cleanup_installer_temp_files() {
   # Remove any temporary installer files that might be left
   local temp_files=(
     "/tmp/cachyinstaller*"
-    "/tmp/yay*"
     "/tmp/paru*"
     "$HOME/.cache/cachyinstaller*"
   )

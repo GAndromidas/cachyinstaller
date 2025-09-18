@@ -6,7 +6,7 @@
 
 ## 🎬 Demo
 
-!<img width="825" height="739" alt="Screenshot_20250918_075832" src="https://github.com/user-attachments/assets/a5b45fe3-b9f8-460b-a9b7-81d3e83631aa" />
+<img width="825" height="739" alt="Screenshot_20250918_075832" src="https://github.com/user-attachments/assets/a5b45fe3-b9f8-460b-a9b7-81d3e83631aa" />
 
 ## 🌟 What Makes CachyInstaller Special?
 

@@ -174,7 +174,7 @@ install_flatpak_quietly() {
   fi
 
   log_info "Installing ${total} packages via Flatpak: ${to_install[*]}"
-  if flatpak install -y --noninteractive flathub "${to_install[@]}"; then
+    if flatpak install -y flathub "${to_install[@]}"; then
     for pkg in "${to_install[@]}"; do
       flatpak list --app | grep -qw "$pkg" && PROGRAMS_INSTALLED+=("$pkg (flatpak)")
     done

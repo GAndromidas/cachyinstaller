@@ -1,0 +1,189 @@
+# CachyInstaller - Programs Configuration
+# This file contains all package lists for different installation modes and desktop environments
+# Optimized for CachyOS with intelligent conflict resolution
+
+# Pacman packages (same for all installation modes)
+pacman:
+  packages:
+    - name: "android-tools"
+      description: "Android development and debugging tools"
+    - name: "bat"
+      description: "Enhanced cat command with syntax highlighting"
+    - name: "bleachbit"
+      description: "System cleaner and privacy tool"
+    - name: "btop"
+      description: "Resource monitor and process viewer"
+    - name: "chromium"
+      description: "Open-source web browser"
+    - name: "cmatrix"
+      description: "Matrix-style terminal screensaver"
+    - name: "dosfstools"
+      description: "DOS filesystem utilities"
+    - name: "expac"
+      description: "Pacman database extraction utility"
+    - name: "firefox"
+      description: "Web browser"
+    - name: "fwupd"
+      description: "Firmware update daemon"
+    - name: "gnome-disk-utility"
+      description: "Disk management utility"
+    - name: "hwinfo"
+      description: "Hardware information tool"
+    - name: "inxi"
+      description: "System information script"
+    - name: "nano"
+      description: "Simple command-line text editor"
+    - name: "ncdu"
+      description: "Disk usage analyzer with interactive interface"
+    - name: "net-tools"
+      description: "Network utilities (ifconfig, netstat, etc.)"
+    - name: "noto-fonts-extra"
+      description: "Additional Google Noto fonts"
+    - name: "ntfs-3g"
+      description: "NTFS filesystem driver for external drives"
+    - name: "samba"
+      description: "Windows file sharing compatibility"
+    - name: "sl"
+      description: "Steam locomotive animation"
+    - name: "speedtest-cli"
+      description: "Command line speedtest tool"
+    - name: "sshfs"
+      description: "SSH filesystem client"
+    - name: "ttf-hack-nerd"
+      description: "Hack font with Nerd Fonts icons"
+    - name: "ttf-liberation"
+      description: "Liberation font family"
+    - name: "unrar"
+      description: "RAR archive extractor"
+    - name: "xdg-desktop-portal-gtk"
+      description: "GTK portal for desktop integration"
+
+# Essential packages for different installation modes
+essential:
+  default:
+    - name: "filezilla"
+      description: "FTP client for file transfers"
+    - name: "gimp"
+      description: "GNU Image Manipulation Program"
+    - name: "kdenlive"
+      description: "Video editing software"
+    - name: "openrgb"
+      description: "RGB lighting control software"
+    - name: "timeshift"
+      description: "System restore and backup tool"
+    - name: "vlc"
+      description: "Media player"
+    - name: "vlc-plugins-all"
+      description: "All VLC plugins (required for VLC functionality)"
+
+  minimal:
+    - name: "timeshift"
+      description: "System restore and backup tool"
+    - name: "vlc"
+      description: "Media player"
+    - name: "vlc-plugins-all"
+      description: "All VLC plugins (required for VLC functionality)"
+
+# AUR packages for different installation modes
+aur:
+  default:
+    - name: "onlyoffice-bin"
+      description: "Office suite with document, spreadsheet and presentation editors"
+    - name: "rustdesk-bin"
+      description: "Remote desktop software"
+    - name: "spotify"
+      description: "Music streaming service"
+    - name: "stremio"
+      description: "Media streaming platform"
+
+  minimal:
+    - name: "onlyoffice-bin"
+      description: "Office suite with document, spreadsheet and presentation editors"
+    - name: "rustdesk-bin"
+      description: "Remote desktop software"
+
+# Desktop environment specific packages
+desktop_environments:
+  kde:
+    install:
+      - "gwenview"
+      - "kdeconnect"
+      - "kwalletmanager"
+      - "kvantum"
+      - "okular"
+      - "power-profiles-daemon"
+      - "python-pyqt5"
+      - "python-pyqt6"
+      - "qbittorrent"
+      - "spectacle"
+    remove:
+      - "htop"
+      - "haruna"
+
+  gnome:
+    install:
+      - "adw-gtk-theme"
+      - "celluloid"
+      - "dconf-editor"
+      - "gnome-tweaks"
+      - "gufw"
+      - "seahorse"
+      - "transmission-gtk"
+    remove:
+      - "epiphany"
+      - "gnome-contacts"
+      - "gnome-maps"
+      - "gnome-music"
+      - "gnome-tour"
+      - "htop"
+      - "snapshot"
+      - "totem"
+
+  cosmic:
+    install:
+      - "power-profiles-daemon"
+      - "transmission-gtk"
+    remove:
+      - "htop"
+
+# Flatpak packages for different desktop environments
+flatpak:
+  kde:
+    default:
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+    minimal:
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+
+  gnome:
+    default:
+      - name: "com.mattjakeman.ExtensionManager"
+        description: "GNOME Extension Manager"
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+    minimal:
+      - name: "com.mattjakeman.ExtensionManager"
+        description: "GNOME Extension Manager"
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+
+  cosmic:
+    default:
+      - name: "dev.edfloreshz.CosmicTweaks"
+        description: "System settings and tweaks"
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+    minimal:
+      - name: "dev.edfloreshz.CosmicTweaks"
+        description: "System settings and tweaks"
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+
+  generic:
+    default:
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"
+    minimal:
+      - name: "it.mijorus.gearlever"
+        description: "System tray application launcher"

@@ -451,8 +451,9 @@ show_installation_summary() {
   echo -e "${CYAN}📝 Log file saved to: $HOME/cachyinstaller.log${RESET}\n"
 
   if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-    echo -e "${YELLOW}🔄 A reboot is recommended to apply all shell changes.${RESET}"
-    echo -e "${YELLOW}   Your shell has been changed to ZSH with Oh-My-Zsh.${RESET}"
+    echo -e "${RED}⚠  REBOOT REQUIRED to complete shell changes!${RESET}"
+    echo -e "${YELLOW}   Fish has been completely removed and replaced with ZSH.${RESET}"
+    echo -e "${YELLOW}   For inexperienced users: Reboot now to avoid any issues!${RESET}"
   elif [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
     echo -e "${GREEN}🐠 Your Fish shell has been enhanced with new features.${RESET}"
     echo -e "${GREEN}   Restart your terminal to see the changes.${RESET}"

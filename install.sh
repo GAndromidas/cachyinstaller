@@ -261,6 +261,17 @@ echo ""
 # Show installation summary
 show_installation_summary
 
+# Disable Fish notifications immediately if converting to ZSH to prevent interference
+if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
+  if [[ -f "/usr/share/cachyos-fish-config/conf.d/done.fish" ]]; then
+    sudo mv "/usr/share/cachyos-fish-config/conf.d/done.fish" "/usr/share/cachyos-fish-config/conf.d/done.fish.disabled" 2>/dev/null || true
+  fi
+  # Kill any remaining Fish processes to prevent interference
+  pkill -f "fish" 2>/dev/null || true
+  # Switch to bash for final operations
+  export SHELL="/bin/bash"
+fi
+
 # Handle installation results with gum styling
 if [ ${#ERRORS[@]} -eq 0 ]; then
   if command -v gum >/dev/null 2>&1; then
@@ -288,19 +299,41 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
     gum style --margin "1 0" --foreground 51 "📝 Installation log saved to: ~/cachyinstaller.log"
     if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
       gum style --margin "0 0 1 0" --foreground 196 "⚠️  Please reboot to complete shell changes!"
+      echo ""
+      gum style --foreground 226 "Would you like to reboot now? (Recommended for inexperienced users)"
+      if gum confirm "Reboot system now?"; then
+        gum style --foreground 46 "🔄 Rebooting system in 3 seconds..."
+        sleep 3
+        sudo reboot
+      else
+        gum style --foreground 226 "⚠️  Remember to reboot manually to complete installation!"
+      fi
     else
       gum style --margin "0 0 1 0" --foreground 46 "🔄 Restart your terminal to see all changes."
     fi
   else
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${GREEN}║                  🎉 CACHYINSTALLER COMPLETE! 🎉              ║${RESET}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${RESET}"
+    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${GREEN}║                                   ║${RESET}"
+    echo -e "${GREEN}║    🎉 CachyInstaller Complete!    ║${RESET}"
+    echo -e "${GREEN}║                                   ║${RESET}"
+    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${RESET}"
     echo ""
     echo -e "${YELLOW}Your CachyOS gaming system is now ready!${RESET}"
+    echo ""
     echo -e "${CYAN}📝 Installation log saved to: ~/cachyinstaller.log${RESET}"
     echo ""
     if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-      echo -e "${RED}⚠️  Please reboot to complete shell changes!${RESET}"
+      echo -e "${RED}⚠  Please reboot to complete shell changes!${RESET}"
+      echo ""
+      echo -e "${YELLOW}Would you like to reboot now? (Recommended for inexperienced users)${RESET}"
+      read -p "Reboot system now? [Y/n]: " -r reboot_choice
+      if [[ "$reboot_choice" =~ ^[Yy]$|^$ ]]; then
+        echo -e "${GREEN}🔄 Rebooting system in 3 seconds...${RESET}"
+        sleep 3
+        sudo reboot
+      else
+        echo -e "${YELLOW}⚠️  Remember to reboot manually to complete installation!${RESET}"
+      fi
     else
       echo -e "${GREEN}🔄 Restart your terminal to see all changes.${RESET}"
     fi

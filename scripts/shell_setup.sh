@@ -40,34 +40,19 @@ convert_fish_to_zsh() {
 
   log_warning "This will PERMANENTLY remove Fish shell!"
 
-  # Remove Fish completely
-  if pacman -Q fish &>/dev/null; then
-    log_info "Removing Fish shell package"
-    sudo pacman -Rns fish --noconfirm >/dev/null 2>&1 || true
-    REMOVED_PACKAGES+=("fish")
-  fi
+  # Use safe Fish removal helper
+  source "$SCRIPT_DIR/safe_fish_removal.sh"
+  safe_remove_fish
 
-  # Remove Fish configurations completely
-  log_info "Removing all Fish shell configurations and data..."
-  rm -rf "$HOME/.config/fish" "$HOME/.local/share/fish" "$HOME/.cache/fish" 2>/dev/null || true
-  rm -f "$HOME/.fishrc" "$HOME/.fish_history" "$HOME/.fish_profile" 2>/dev/null || true
-
-  # Remove any Fish-related environment variables from shell profiles
-  sed -i '/fish/d' "$HOME/.profile" 2>/dev/null || true
-  sed -i '/fish/d' "$HOME/.bashrc" 2>/dev/null || true
-  sed -i '/fish/d' "$HOME/.bash_profile" 2>/dev/null || true
-
-  # Remove Fish from any desktop environment autostart
-  rm -f "$HOME/.config/autostart/fish"* 2>/dev/null || true
-
-  log_success "Fish shell completely removed from system"
-
-  # Install ZSH setup
+  # Continue with ZSH installation
   install_zsh_setup
   change_shell_to_zsh
   setup_fastfetch_config
 
   log_success "Successfully converted from Fish to ZSH"
+
+  # Set flag for main installer to show reboot prompt
+  export REQUIRES_REBOOT=true
 }
 
 install_zsh_setup() {
@@ -195,9 +180,11 @@ change_shell_to_zsh() {
   if [[ "$current_shell" != "$zsh_path" ]]; then
     if sudo chsh -s "$zsh_path" "$USER" 2>/dev/null; then
       log_success "Default shell changed to ZSH"
-      log_warning "Reboot recommended for full shell changes"
+      log_warning "Shell change complete - system reboot required"
+      export REQUIRES_REBOOT=true
     else
       log_error "Failed to change shell - you can do it manually: chsh -s $(command -v zsh)"
+      export REQUIRES_REBOOT=true
     fi
   else
     log_info "Default shell is already ZSH"

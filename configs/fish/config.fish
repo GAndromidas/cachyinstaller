@@ -32,10 +32,10 @@ alias jctl='journalctl -p 3 -xb'                                                
 #   System Power Management
 # =============================================================================
 
-alias sr='echo "Rebooting the system...\n" && sudo reboot'                       # Reboot
-alias ss='echo "Shutting down the system...\n" && sudo poweroff'                 # Shutdown
-alias suspend='systemctl suspend'                                                 # Suspend
-alias hibernate='systemctl hibernate'                                             # Hibernate
+alias sr='sudo reboot'                                                           # Reboot
+alias ss='sudo poweroff'                                                         # Shutdown
+alias suspend='systemctl suspend'                                                # Suspend
+alias hibernate='systemctl hibernate'                                            # Hibernate
 
 # =============================================================================
 #   File Management (eza replacing ls)
@@ -56,10 +56,14 @@ alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias .....='cd ../../../..'
-alias -- -='cd -'
 alias home='cd ~'
 alias docs='cd ~/Documents'
 alias down='cd ~/Downloads'
+
+# Create a function for cd - instead of an alias
+function prevd --description 'Go to previous directory'
+    cd -
+end
 
 # =============================================================================
 #   Networking
@@ -197,9 +201,7 @@ end
 # =============================================================================
 
 # Initialize Starship prompt
-if test -f "$HOME/.config/fish/starship.fish"
-    source "$HOME/.config/fish/starship.fish"
-else if type -q starship
+if type -q starship
     starship init fish | source
 end
 

@@ -1,744 +1,327 @@
-#!/bin/bash
-set -uo pipefail
-trap 'cleanup_on_error $?' ERR
-trap cleanup_on_exit EXIT
+#!/usr/bin/env bash
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+# Import common functions if not already imported
+if [ -z "$SCRIPTS_DIR" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    source "$SCRIPT_DIR/scripts/common.sh"
+fi
 
-cleanup_and_optimize() {
-  step "Performing final cleanup and optimizations"
-  local errors=0
-
-  # Check if lsblk is available for SSD detection
-  if command_exists lsblk; then
-    if lsblk -d -o rota | grep -q '^0$'; then
-      if ! run_step "Running fstrim on SSDs" sudo fstrim -v /; then
-        log_warning "SSD optimization failed but continuing"
-        ((errors++))
-      fi
-    fi
-  else
-    log_warning "lsblk not available. Skipping SSD optimization."
-  fi
-
-  # Clean tmp with safeguards
-  if mountpoint -q /tmp; then
-    log_warning "Skipping /tmp cleanup as it is a mounted filesystem"
-  else
-    if ! run_step "Cleaning /tmp directory" find /tmp -mindepth 1 -delete; then
-      log_warning "Some files in /tmp could not be removed"
-      ((errors++))
-    fi
-  fi
-
-  # Ensure disk writes are synced
-  run_step "Syncing disk writes" sync
-  if [ $errors -gt 0 ]; then
-    log_warning "Completed with $errors non-critical errors"
-    return 1
-  fi
-  return 0
+# Utility functions
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
-setup_maintenance() {
-  step "Performing comprehensive system cleanup"
-  local errors=0
-
-  # Keep at least one previous version of packages
-  if ! run_step "Cleaning pacman cache" sudo pacman -Sc --keep 1 --noconfirm; then
-    log_error "Failed to clean pacman cache"
-    ((errors++))
-  fi
-
-  # Clean AUR cache safely
-  if command -v paru >/dev/null 2>&1; then
-    if ! run_step "Cleaning paru cache" paru -Sc --keep 1 --noconfirm; then
-      log_warning "Failed to clean paru cache"
-      ((errors++))
-    fi
-  fi
-
-  # Flatpak cleanup with retries
-  if command -v flatpak >/dev/null 2>&1; then
-    local retries=3
-    local success=false
-
-    for ((i=1; i<=retries; i++)); do
-      if run_step "Removing unused flatpak packages" sudo flatpak uninstall --unused --noninteractive -y && \
-         run_step "Removing unused flatpak runtimes" sudo flatpak uninstall --unused --noninteractive -y; then
-        success=true
-        break
-      else
-        log_warning "Flatpak cleanup attempt $i failed, retrying..."
-        sleep 2
-      fi
-    done
-
-    if [ "$success" = true ]; then
-      log_success "Flatpak cleanup completed"
+run_step() {
+    local description="$1"
+    shift
+    echo -e "\n>> $description..."
+    if "$@"; then
+        return 0
     else
-      log_error "Flatpak cleanup failed after $retries attempts"
-      ((errors++))
+        log_error "Failed to execute: $description"
+        return 1
     fi
-  else
-    log_info "Flatpak not installed, skipping flatpak cleanup"
-  fi
-
-  # Remove orphaned packages safely
-  if pacman -Qtdq &>/dev/null; then
-    local orphans=$(pacman -Qtdq)
-    if [ -n "$orphans" ]; then
-      echo "The following packages will be removed:"
-      pacman -Qi $orphans | grep "Name\|Description"
-      if ! run_step "Removing orphaned packages" sudo pacman -Rns $orphans --noconfirm; then
-        log_error "Failed to remove some orphaned packages"
-        ((errors++))
-      fi
-    fi
-  else
-    log_info "No orphaned packages found"
-  fi
-
-  if [ $errors -gt 0 ]; then
-    log_warning "Maintenance completed with $errors non-critical errors"
-    return 1
-  fi
-  return 0
 }
 
+# Maintenance setup
+setup_maintenance() {
+    step "Maintenance"
+    step "Performing final cleanup and optimizations"
+
+    # SSD TRIM if available
+    if command_exists lsblk; then
+        if lsblk -d -o name,rota | grep -q "0$"; then
+            sudo systemctl enable fstrim.timer
+            sudo systemctl start fstrim.timer
+            log_success "SSD TRIM service enabled"
+        fi
+    else
+        log_warning "lsblk not available. Skipping SSD optimization."
+    fi
+
+    # Clean /tmp if not mounted as tmpfs
+    if ! mount | grep -q "tmpfs on /tmp"; then
+        sudo rm -rf /tmp/*
+        log_success "Cleaned /tmp directory"
+    else
+        log_warning "Skipping /tmp cleanup as it is a mounted filesystem"
+    fi
+}
+
+# System cleanup
+cleanup_system() {
+    step "Performing comprehensive system cleanup"
+
+    # Clean package cache
+    if command_exists paccache; then
+        sudo paccache -rk1
+        log_success "Cleaned package cache"
+    else
+        log_error "Failed to clean pacman cache"
+    fi
+
+    # Clean paru cache if installed
+    if command_exists paru; then
+        paru -Sc --noconfirm
+        log_success "Cleaned paru cache"
+    else
+        log_warning "Failed to clean paru cache"
+    fi
+
+    # Clean flatpak if installed
+    if command_exists flatpak; then
+        flatpak uninstall --unused -y
+        log_success "Cleaned unused Flatpak packages"
+    else
+        log_info "Flatpak not installed, skipping flatpak cleanup"
+    fi
+}
+
+# Remove development packages
 cleanup_helpers() {
-  run_step "Cleaning paru build dir" sudo rm -rf /tmp/paru
+    if pacman -Qi gendesk &>/dev/null; then
+        echo "The following packages will be removed:"
+        pacman -Qi gendesk | grep -E "^(Name|Description)" | sed 's/^/    /'
+
+        if sudo pacman -Rns gendesk --noconfirm; then
+            log_success "Removed helper packages"
+        else
+            log_error "Failed to remove some orphaned packages"
+        fi
+    fi
 }
 
-# CachyOS uses rate-mirrors by default, so we don't need to install it
-update_mirrorlist() {
-  step "Updating mirrorlist"
-  run_step "Updating mirrorlist with fastest mirrors" sudo rate-mirrors --allow-root arch
-  log_success "Mirrorlist updated successfully"
+# Update mirrorlist
+update_mirrors() {
+    step "Updating mirrorlist"
+
+    if command_exists rate-mirrors; then
+        sudo rate-mirrors --allow-root arch --save /etc/pacman.d/mirrorlist
+        sudo pacman -Sy
+        log_success "Mirrorlist updated successfully"
+    else
+        log_warning "rate-mirrors not found, using reflector instead"
+        if command_exists reflector; then
+            sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+            sudo pacman -Sy
+            log_success "Mirrorlist updated successfully"
+        else
+            log_error "Neither rate-mirrors nor reflector found"
+            return 1
+        fi
+    fi
 }
 
-# Check if system uses Btrfs filesystem
-is_btrfs_system() {
-  findmnt -no FSTYPE / | grep -q btrfs
+# Set up Btrfs snapshots
+setup_snapshots() {
+    if ! command_exists btrfs; then
+        log_info "Not a Btrfs filesystem, skipping snapshot setup"
+        return 0
+    fi
+
+    step "Configuring systemd-boot snapshot support"
+
+    # Install snapshot tools
+    log_info "Setting up snapshot management tools..."
+    install_package snapper
+    install_package snap-pac
+    install_package btrfs-assistant
+
+    # Configure snapshot services
+    log_info "Configuring snapshot system services and monitoring..."
+
+    # Enable services if they exist
+    if [ -f /usr/lib/systemd/system/grub-btrfsd.service ]; then
+        sudo systemctl enable --now grub-btrfsd.service
+    else
+        log_warning "Failed to enable grub-btrfsd.service"
+    fi
+
+    if [ -f /usr/lib/systemd/system/btrfs-assistant-daemon.service ]; then
+        sudo systemctl enable --now btrfs-assistant-daemon.service
+    else
+        log_warning "Failed to enable btrfs-assistant-daemon.service"
+    fi
+
+    # Update boot configuration
+    if command_exists grub-mkconfig; then
+        sudo grub-mkconfig -o /boot/grub/grub.cfg
+    else
+        log_error "Failed to regenerate GRUB configuration"
+    fi
+
+    # Check filesystem and space
+    if command_exists btrfs; then
+        log_info "Btrfs filesystem detected on root partition"
+
+        # Check available space
+        local available_space=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+        if [ "$available_space" -lt 20 ]; then
+            log_warning "Low disk space detected: ${available_space}GB available (20GB+ recommended)"
+        fi
+
+        # Remove Timeshift if present to avoid conflicts
+        if pacman -Qi timeshift &>/dev/null; then
+            log_warning "Timeshift detected - removing to avoid conflicts with Snapper"
+            sudo pacman -Rns timeshift --noconfirm || log_warning "Could not remove Timeshift cleanly"
+        fi
+
+        # Set up Snapper
+        setup_snapper
+    fi
+}
+
+# Configure Snapper
+setup_snapper() {
+    step "Installing snapshot management packages"
+    log_info "Installing: snapper, snap-pac, btrfs-assistant"
+    install_package snapper
+    install_package snap-pac
+    install_package btrfs-assistant
+
+    step "Configuring Snapper for root filesystem"
+    log_info "Creating new Snapper configuration..."
+
+    # Create initial Snapper config
+    if ! snapper list-configs 2>/dev/null | grep -q "root"; then
+        sudo snapper create-config /
+        sudo snapper set-config "NUMBER_CLEANUP=yes" "NUMBER_LIMIT=10" "TIMELINE_CLEANUP=yes" "TIMELINE_LIMIT_HOURLY=5" "TIMELINE_LIMIT_DAILY=7"
+    fi
+
+    # Set up bootloader configuration
+    log_info "Detected bootloader: $(detect_bootloader)"
+    configure_bootloader_snapshots
+
+    step "Enabling Snapper automatic snapshot timers"
+    sudo systemctl enable --now snapper-timeline.timer snapper-cleanup.timer
+    log_success "Snapper timers enabled and started"
+
+    # Create initial snapshot
+    step "Creating initial snapshot"
+    sudo snapper create --type single --cleanup-algorithm number --description "Initial snapshot after setup"
+    log_success "Initial snapshot created"
+
+    # Verify setup
+    step "Verifying Btrfs snapshot setup"
+    if snapper list-configs &>/dev/null; then
+        log_success "Snapper is working correctly"
+
+        if systemctl is-active snapper-timeline.timer >/dev/null 2>&1 && \
+           systemctl is-active snapper-cleanup.timer >/dev/null 2>&1; then
+            log_success "Snapper timers are active"
+        fi
+
+        log_info "Current snapshots:"
+        snapper list
+
+        log_success "Btrfs snapshot setup completed successfully!"
+
+        cat << EOF
+
+Snapshot system configured:
+  • Automatic snapshots before/after package operations
+  • Retention: 5 hourly, 7 daily snapshots
+  • CachyOS kernel fallback: Available in boot menu
+  • GUI management: Launch 'btrfs-assistant' from your menu
+
+How to use:
+  • View snapshots: sudo snapper list
+  • Restore via GUI: Launch 'btrfs-assistant'
+  • Emergency fallback: Boot 'CachyOS Linux (Fallback)'
+  • Snapshots stored in: /.snapshots/
+
+EOF
+    else
+        log_error "Snapper verification failed"
+        return 1
+    fi
+}
+
+# Configure bootloader for snapshots
+configure_bootloader_snapshots() {
+    step "Configuring systemd-boot for CachyOS kernels"
+
+    # Create systemd-boot entry for snapshots
+    local template="/etc/systemd/system/boot-entries/snapshot.conf"
+    if [ -f "$template" ]; then
+        sudo cp "$template" "/boot/loader/entries/cachyos-snapshot.conf"
+        log_success "Snapshot boot entry created"
+    else
+        log_warning "Could not find systemd-boot template. You may need to manually create fallback boot entry"
+    fi
+
+    # Update bootloader
+    if ! sudo bootctl update; then
+        log_warning "systemd-boot configuration had issues but continuing"
+    fi
+
+    step "Installing pacman hook for snapshot notifications"
+    # Create pacman hook directory if it doesn't exist
+    sudo mkdir -p /etc/pacman.d/hooks
+
+    # Create pre and post transaction hooks
+    cat << 'EOF' | sudo tee /etc/pacman.d/hooks/95-snapshot.hook >/dev/null
+[Trigger]
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Creating Snapper snapshot...
+When = PreTransaction
+Exec = /usr/bin/snapper create --type pre --cleanup-algorithm number --description "pacman transaction"
+AbortOnFail
+EOF
+
+    cat << 'EOF' | sudo tee /etc/pacman.d/hooks/96-snapshot.hook >/dev/null
+[Trigger]
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Creating Snapper snapshot...
+When = PostTransaction
+Exec = /usr/bin/snapper create --type post --cleanup-algorithm number --description "pacman transaction"
+EOF
+
+    log_success "Pacman hook installed - you'll be notified after package operations"
 }
 
 # Detect bootloader type
 detect_bootloader() {
-  if [ -d "/boot/grub" ] || [ -d "/boot/grub2" ] || [ -d "/boot/efi/EFI/grub" ] || command -v grub-mkconfig &>/dev/null || pacman -Q grub &>/dev/null 2>&1; then
-    echo "grub"
-  elif [ -d "/boot/loader/entries" ] || [ -d "/efi/loader/entries" ] || command -v bootctl &>/dev/null; then
-    echo "systemd-boot"
-  else
-    echo "unknown"
-  fi
-}
-
-# Configure Snapper settings
-configure_snapper() {
-  step "Configuring Snapper for root filesystem"
-
-  # Backup existing config if present
-  if [ -f /etc/snapper/configs/root ]; then
-    log_info "Snapper config already exists. Creating backup..."
-    sudo cp /etc/snapper/configs/root /etc/snapper/configs/root.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-    log_info "Updating existing Snapper configuration..."
-  else
-    log_info "Creating new Snapper configuration..."
-    if ! sudo snapper -c root create-config / 2>/dev/null; then
-      log_error "Failed to create Snapper configuration"
-      return 1
-    fi
-  fi
-
-  # Detect bootloader type
-    local BOOTLOADER="unknown"
-    if [ -d "/boot/grub" ] || [ -d "/boot/grub2" ] || pacman -Q grub &>/dev/null; then
-      BOOTLOADER="grub"
-    elif [ -d "/boot/loader" ] || [ -d "/efi/loader" ] || command -v bootctl &>/dev/null; then
-      BOOTLOADER="systemd-boot"
-    fi
-    log_info "Detected bootloader: $BOOTLOADER"
-
-    # Configure Snapper settings for optimal snapshot management
-    local SNAPPER_CONFIG="/etc/snapper/configs/root"
-
-    # Backup existing config if present
-    if [ -f "$SNAPPER_CONFIG" ]; then
-      sudo cp "$SNAPPER_CONFIG" "${SNAPPER_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
-    fi
-
-  # Configure Snapper with gaming-optimized settings
-  sudo tee "$SNAPPER_CONFIG" > /dev/null << EOF
-# Snapper config for root filesystem
-# Gaming-focused configuration by CachyInstaller
-
-# General snapshot settings - minimal storage impact
-TIMELINE_CREATE="yes"
-TIMELINE_CLEANUP="yes"
-NUMBER_CLEANUP="yes"
-NUMBER_LIMIT="10"
-NUMBER_LIMIT_IMPORTANT="5"
-
-# Timeline snapshots (gaming-optimized)
-TIMELINE_LIMIT_HOURLY="3"
-TIMELINE_LIMIT_DAILY="3"
-TIMELINE_LIMIT_WEEKLY="0"
-TIMELINE_LIMIT_MONTHLY="0"
-TIMELINE_LIMIT_YEARLY="0"
-
-# Aggressive cleanup for gaming storage
-NUMBER_MIN_AGE="1800"
-TIMELINE_MIN_AGE="1800"
-EMPTY_PRE_POST_CLEANUP="yes"
-EMPTY_PRE_POST_MIN_AGE="1800"
-
-# Gaming storage management
-SYNC_ACL="yes"
-SPACE_LIMIT="0.2"
-FREE_LIMIT="0.15"
-
-# Simple configuration
-QGROUP="1/0"
-SUBVOLUME="/"
-
-# Fast compression for minimal impact
-COMPRESSION_TYPE="zstd"
-COMPRESSION_LEVEL="1"
-EOF
-
-  log_success "Snapper configuration completed (5 hourly, 7 daily snapshots)"
-}
-
-# Setup GRUB bootloader for snapshots
-setup_bootloader_snapshots() {
-  local bootloader="$1"
-  step "Configuring $bootloader snapshot support"
-
-  # Install and configure snapshot management tools
-  log_info "Setting up snapshot management tools..."
-
-  # Install common packages
-  local SNAPSHOT_PKGS=(btrfs-assistant snapper-support snap-pac)
-
-  # Add bootloader-specific packages
-  if [ "$bootloader" = "grub" ]; then
-    SNAPSHOT_PKGS+=(grub-btrfs grub-btrfs-config)
-  elif [ "$bootloader" = "systemd-boot" ]; then
-    SNAPSHOT_PKGS+=(snapper-boot)
-  fi
-
-  install_packages_quietly "${SNAPSHOT_PKGS[@]}"
-
-  # Configure btrfs-assistant
-  if command -v btrfs-assistant >/dev/null; then
-    # Create default config directory
-    sudo mkdir -p /etc/btrfs-assistant
-
-    # Configure default settings
-    sudo tee /etc/btrfs-assistant/config.json > /dev/null << EOF
-{
-    "general": {
-        "check_interval": 7200,
-        "notify_updates": true,
-        "auto_cleanup": true
-    },
-    "snapshots": {
-        "compression": "zstd",
-        "compression_level": 1,
-        "snapshot_dir": "/.snapshots",
-        "retain_important": 5,
-        "min_free_space": "50G",
-        "gaming_mode": true
-    },
-    "integration": {
-        "use_snapper": true,
-        "snapper_config": "root",
-        "boot_entries": true,
-        "auto_mount_snapshots": true,
-        "cleanup_on_low_space": true
-    }
-}
-EOF
-  fi
-
-  # Enable and configure system services with monitoring
-  log_info "Configuring snapshot system services and monitoring..."
-
-  # Set up system monitoring for snapshots
-  sudo mkdir -p /etc/systemd/system
-
-  # Create snapshot monitoring service
-  sudo tee /etc/systemd/system/snapper-monitor.service > /dev/null << EOF
-[Unit]
-Description=Snapper System Monitoring Service
-After=snapper-timeline.service
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/bash -c 'while true; do snapper list; df -h /.snapshots; sleep 300; done'
-Restart=always
-RestartSec=30
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  # Create btrfs scrub service
-  sudo tee /etc/systemd/system/btrfs-scrub.service > /dev/null << EOF
-[Unit]
-Description=Btrfs Scrub Service
-After=local-fs.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/btrfs scrub start -B /
-Nice=19
-IOSchedulingClass=idle
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  # Create btrfs scrub timer
-  sudo tee /etc/systemd/system/btrfs-scrub.timer > /dev/null << EOF
-[Unit]
-Description=Weekly Btrfs Scrub Timer
-
-[Timer]
-OnCalendar=weekly
-AccuracySec=1h
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-  # Enable core snapshot services
-  local SNAPSHOT_SERVICES=(
-    "snapper-timeline.timer"
-    "snapper-cleanup.timer"
-    "grub-btrfsd.service"
-    "btrfs-assistant-daemon.service"
-    "snapper-monitor.service"
-    "btrfs-scrub.timer"
-    "btrfs-scrub.service"
-  )
-
-  for service in "${SNAPSHOT_SERVICES[@]}"; do
-    if systemctl is-enabled "$service" &>/dev/null; then
-      sudo systemctl restart "$service" 2>/dev/null || log_warning "Failed to restart $service"
+    if [ -d "/boot/EFI/systemd" ]; then
+        echo "systemd-boot"
+    elif [ -d "/boot/grub" ]; then
+        echo "GRUB"
     else
-      sudo systemctl enable --now "$service" 2>/dev/null || log_warning "Failed to enable $service"
+        echo "unknown"
     fi
-  done
-
-  # Configure bootloader-specific integrations
-  if [ "$bootloader" = "grub" ]; then
-    # Enable GRUB-specific services
-    sudo systemctl enable --now grub-btrfsd.service 2>/dev/null || log_warning "Failed to enable grub-btrfsd service"
-
-    # Update GRUB config
-    sudo grub-mkconfig -o /boot/grub/grub.cfg
-  elif [ "$bootloader" = "systemd-boot" ]; then
-    # Configure systemd-boot for snapshot booting
-    sudo mkdir -p /etc/kernel/cmdline.d
-    echo "rootflags=subvol=@/.snapshots/1/snapshot" | sudo tee /etc/kernel/cmdline.d/snapper.conf
-
-    # Update bootloader entries
-    sudo bootctl update
-  fi
-
-  # Configure enhanced pacman hooks for intelligent snapshot management
-  sudo mkdir -p /etc/pacman.d/hooks
-
-  # Pre-transaction hook with space check and cleanup
-  sudo tee /etc/pacman.d/hooks/95-snapshot-pre.hook > /dev/null << EOF
-[Trigger]
-Operation = Upgrade
-Operation = Install
-Operation = Remove
-Type = Package
-Target = *
-
-[Action]
-Description = Creating pre-transaction snapshot (Gaming Mode)...
-When = PreTransaction
-Exec = /bin/bash -c 'if [ $(/bin/df -h / | awk "NR==2 {print \$5}" | tr -d "%") -lt 85 ]; then /usr/bin/snapper --no-dbus create --type pre --cleanup-algorithm number --print-number --description "Gaming stability snapshot before updates"; else echo "Skipping snapshot - preserving space for games"; fi'
-Depends = snapper
-AbortOnFail
-EOF
-
-  # CachyOS kernel update specific hook
-    sudo tee /etc/pacman.d/hooks/95-snapshot-kernel.hook > /dev/null << EOF
-  [Trigger]
-  Operation = Install
-  Operation = Upgrade
-  Type = Package
-  Target = linux-cachyos*
-  Target = nvidia-dkms
-  Target = nvidia-utils
-  Target = lib32-nvidia-utils
-  Target = vulkan-icd-loader
-  Target = lib32-vulkan-icd-loader
-
-  [Action]
-  Description = Creating gaming-critical update snapshot...
-  When = PreTransaction
-  Exec = /usr/bin/snapper --no-dbus create --type pre --cleanup-algorithm number --print-number --description "Before gaming-critical update (kernel/GPU)"
-  Depends = snapper
-  AbortOnFail
-  EOF
-
-  # Post-transaction hook with detailed metadata
-  sudo tee /etc/pacman.d/hooks/96-snapshot-post.hook > /dev/null << EOF
-[Trigger]
-Operation = Upgrade
-Operation = Install
-Operation = Remove
-Type = Package
-Target = *
-
-[Action]
-Description = Creating post-transaction Btrfs snapshot...
-When = PostTransaction
-Exec = /usr/bin/snapper --no-dbus create --type post --cleanup-algorithm number --print-number --description "After pacman transaction"
-Depends = snapper
-AbortOnFail
-EOF
-
-  # System update notification hook
-  sudo tee /etc/pacman.d/hooks/97-snapshot-notify.hook > /dev/null << EOF
-[Trigger]
-Operation = Upgrade
-Operation = Install
-Operation = Remove
-Type = Package
-Target = *
-
-[Action]
-Description = Notifying about system snapshot...
-When = PostTransaction
-Exec = /usr/bin/notify-send "System Snapshot" "A new system snapshot has been created for package changes. Use btrfs-assistant to manage snapshots."
-EOF
-
-  # Emergency snapshot hook for critical packages
-  sudo tee /etc/pacman.d/hooks/98-snapshot-emergency.hook > /dev/null << EOF
-[Trigger]
-Operation = Remove
-Type = Package
-Target = systemd
-Target = glibc
-Target = linux
-Target = linux-api-headers
-Target = base
-Target = sudo
-
-[Action]
-Description = Creating emergency snapshot for critical package modification...
-When = PreTransaction
-Exec = /usr/bin/snapper --no-dbus create --type pre --cleanup-algorithm number --print-number --userdata "important=yes" --description "EMERGENCY: Critical package modification"
-Depends = snapper
-AbortOnFail
-EOF
-
-  # Regenerate GRUB configuration
-  log_info "Regenerating GRUB configuration..."
-  if sudo grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null; then
-    log_success "GRUB configuration complete - snapshots will appear in boot menu"
-  else
-    log_error "Failed to regenerate GRUB configuration"
-    return 1
-  fi
 }
 
-# Setup systemd-boot bootloader for CachyOS kernels
-setup_systemd_boot() {
-  step "Configuring systemd-boot for CachyOS kernels"
+# Main maintenance function
+main() {
+    local errors=0
+    local warnings=0
 
-  local BOOT_DIR="/boot/loader/entries"
+    setup_maintenance || ((errors++))
+    cleanup_system || ((errors++))
+    cleanup_helpers || ((errors++))
+    update_mirrors || ((errors++))
+    setup_snapshots || ((errors++))
 
-  # Find existing CachyOS boot entry
-  local TEMPLATE=$(find "$BOOT_DIR" -name "*cachyos*.conf" 2>/dev/null | head -n1)
-
-  if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ]; then
-    local BASE=$(basename "$TEMPLATE" .conf)
-    local FALLBACK_ENTRY="$BOOT_DIR/${BASE}-fallback.conf"
-
-    if [ ! -f "$FALLBACK_ENTRY" ]; then
-      log_info "Creating systemd-boot fallback entry for CachyOS kernel..."
-
-      # Backup original template
-      sudo cp "$TEMPLATE" "${TEMPLATE}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-
-      sudo cp "$TEMPLATE" "$FALLBACK_ENTRY"
-      sudo sed -i 's/^title .*/title CachyOS Linux (Fallback)/' "$FALLBACK_ENTRY"
-      sudo sed -i 's|initramfs-linux\.img|initramfs-linux-fallback.img|g' "$FALLBACK_ENTRY"
-      log_success "Fallback kernel boot entry created: $FALLBACK_ENTRY"
+    if [ $errors -gt 0 ] || [ $warnings -gt 0 ]; then
+        log_warning "Maintenance completed with warnings in steps: setup_maintenance cleanup_helpers setup_bootloader_snapshots"
+        log_info "Non-critical errors occurred but system should still be usable"
+        log_error "Maintenance failed"
     else
-      log_info "Fallback kernel boot entry already exists"
+        log_success "Maintenance completed successfully"
     fi
-  else
-    log_warning "Could not find systemd-boot template. You may need to manually create fallback boot entry"
-    return 1
-  fi
 }
 
-# Setup pacman hook for snapshot notifications
-setup_pacman_hook() {
-  step "Installing pacman hook for snapshot notifications"
-
-  sudo mkdir -p /etc/pacman.d/hooks
-
-  # Backup existing hook if present
-  if [ -f /etc/pacman.d/hooks/snapper-notify.hook ]; then
-    sudo cp /etc/pacman.d/hooks/snapper-notify.hook /etc/pacman.d/hooks/snapper-notify.hook.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-  fi
-
-  cat << 'EOF' | sudo tee /etc/pacman.d/hooks/snapper-notify.hook >/dev/null
-[Trigger]
-Operation = Upgrade
-Operation = Install
-Operation = Remove
-Type = Package
-Target = *
-
-[Action]
-Description = Snapshot notification
-When = PostTransaction
-Exec = /usr/bin/sh -c 'echo ""; echo "System snapshot created before package changes."; echo "View snapshots: sudo snapper list"; echo "Rollback if needed: sudo snapper rollback <number>"; echo ""'
-EOF
-
-  log_success "Pacman hook installed - you'll be notified after package operations"
-}
-
-# Main Btrfs snapshot setup function
-setup_btrfs_snapshots() {
-  # Check if system uses Btrfs
-  if ! is_btrfs_system; then
-    log_info "Root filesystem is not Btrfs. Snapshot setup skipped."
-    return 0
-  fi
-
-  log_info "Btrfs filesystem detected on root partition"
-
-  # Check available disk space
-  local AVAILABLE_SPACE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-  if [ "$AVAILABLE_SPACE" -lt 20 ]; then
-    log_warning "Low disk space detected: ${AVAILABLE_SPACE}GB available (20GB+ recommended)"
-  else
-    log_success "Sufficient disk space available: ${AVAILABLE_SPACE}GB"
-  fi
-
-  # Ask user if they want to set up snapshots
-  local setup_snapshots=false
-  if command -v gum >/dev/null 2>&1; then
-    echo ""
-    gum style --foreground 226 "Btrfs snapshot setup available:"
-    gum style --margin "0 2" --foreground 15 "• Automatic snapshots before/after package operations"
-    gum style --margin "0 2" --foreground 15 "• Retention: 5 hourly, 7 daily snapshots"
-    gum style --margin "0 2" --foreground 15 "• CachyOS kernel fallback for recovery"
-    gum style --margin "0 2" --foreground 15 "• GUI tool (btrfs-assistant) for snapshot management"
-    echo ""
-    if gum confirm --default=false "Would you like to set up automatic Btrfs snapshots?"; then
-      setup_snapshots=true
-    fi
-  else
-    echo ""
-    echo -e "${YELLOW}Btrfs snapshot setup available:${RESET}"
-    echo -e "  • Automatic snapshots before/after package operations"
-    echo -e "  • Retention: 5 hourly, 7 daily snapshots"
-    echo -e "  • CachyOS kernel fallback for recovery"
-    echo -e "  • GUI tool (btrfs-assistant) for snapshot management"
-    echo ""
-    read -r -p "Would you like to set up automatic Btrfs snapshots? [y/N]: " response
-    response=${response,,}
-    if [[ "$response" == "y" || "$response" == "yes" ]]; then
-      setup_snapshots=true
-    fi
-  fi
-
-  if [ "$setup_snapshots" = false ]; then
-    log_info "Btrfs snapshot setup skipped by user"
-    return 0
-  fi
-
-  # Detect bootloader
-  local BOOTLOADER=$(detect_bootloader)
-  log_info "Detected bootloader: $BOOTLOADER"
-
-  step "Setting up Btrfs snapshots system"
-
-  # Remove Timeshift if installed (conflicts with Snapper)
-  if pacman -Q timeshift &>/dev/null; then
-    log_warning "Timeshift detected - removing to avoid conflicts with Snapper"
-    sudo pacman -Rns --noconfirm timeshift 2>/dev/null || log_warning "Could not remove Timeshift cleanly"
-  fi
-
-  # Clean up Timeshift snapshots if they exist
-  if [ -d "/timeshift-btrfs" ]; then
-    log_info "Cleaning up Timeshift snapshot directory..."
-    sudo rm -rf /timeshift-btrfs 2>/dev/null || log_warning "Could not remove Timeshift directory"
-  fi
-
-  # Install required packages
-  step "Installing snapshot management packages"
-  log_info "Installing: snapper, snap-pac, btrfs-assistant"
-
-  # Update package database first
-  sudo pacman -Sy >/dev/null 2>&1 || log_warning "Failed to update package database"
-
-  # Install packages
-  install_package snapper
-  install_package snap-pac
-  install_package btrfs-assistant
-
-  # Configure Snapper
-  configure_snapper || { log_error "Snapper configuration failed"; return 1; }
-
-  # Enable Snapper timers
-  step "Enabling Snapper automatic snapshot timers"
-  if sudo systemctl enable --now snapper-timeline.timer 2>/dev/null && \
-     sudo systemctl enable --now snapper-cleanup.timer 2>/dev/null; then
-    log_success "Snapper timers enabled and started"
-  else
-    log_error "Failed to enable Snapper timers"
-    return 1
-  fi
-
-  # Configure bootloader
-  case "$BOOTLOADER" in
-    grub)
-      setup_grub_bootloader || log_warning "GRUB configuration had issues but continuing"
-      ;;
-    systemd-boot)
-      setup_systemd_boot || log_warning "systemd-boot configuration had issues but continuing"
-      ;;
-    *)
-      log_warning "Could not detect GRUB or systemd-boot. Bootloader configuration skipped."
-      log_info "Snapper will still work, but you may need to manually configure boot entries."
-      ;;
-  esac
-
-  # Setup pacman hook
-  setup_pacman_hook || log_warning "Pacman hook setup had issues but continuing"
-
-  # Create initial snapshot
-  step "Creating initial snapshot"
-  if sudo snapper -c root create -d "Initial snapshot after setup" 2>/dev/null; then
-    log_success "Initial snapshot created"
-  else
-    log_warning "Failed to create initial snapshot (non-critical)"
-  fi
-
-  # Verify installation
-  step "Verifying Btrfs snapshot setup"
-  local verification_passed=true
-
-  if sudo snapper list &>/dev/null; then
-    log_success "Snapper is working correctly"
-  else
-    log_error "Snapper verification failed"
-    verification_passed=false
-  fi
-
-  if systemctl is-active --quiet snapper-timeline.timer && systemctl is-active --quiet snapper-cleanup.timer; then
-    log_success "Snapper timers are active"
-  else
-    log_warning "Some Snapper timers may not be running correctly"
-    verification_passed=false
-  fi
-
-  # Display current snapshots
-  echo ""
-  log_info "Current snapshots:"
-  sudo snapper list 2>/dev/null || echo "  (No snapshots yet)"
-  echo ""
-
-  # Summary
-  if [ "$verification_passed" = true ]; then
-    log_success "Btrfs snapshot setup completed successfully!"
-    echo ""
-    echo -e "${CYAN}Snapshot system configured:${RESET}"
-    echo -e "  • Automatic snapshots before/after package operations"
-    echo -e "  • Retention: 5 hourly, 7 daily snapshots"
-    echo -e "  • CachyOS kernel fallback: Available in boot menu"
-    echo -e "  • GUI management: Launch 'btrfs-assistant' from your menu"
-    echo ""
-    echo -e "${CYAN}How to use:${RESET}"
-    echo -e "  • View snapshots: ${YELLOW}sudo snapper list${RESET}"
-    if [ "$BOOTLOADER" = "grub" ]; then
-      echo -e "  • Boot snapshots: Select 'CachyOS Linux snapshots' in GRUB menu"
-      echo -e "  • GRUB auto-updates when new snapshots are created"
-    fi
-    echo -e "  • Restore via GUI: Launch 'btrfs-assistant'"
-    echo -e "  • Emergency fallback: Boot 'CachyOS Linux (Fallback)'"
-    echo -e "  • Snapshots stored in: ${YELLOW}/.snapshots/${RESET}"
-    echo ""
-  else
-    log_warning "Btrfs snapshot setup completed with some warnings"
-    log_info "Most functionality should still work. Review errors above."
-  fi
-}
-
-# Function to run all maintenance steps with error handling
-# Execute all maintenance and snapshot steps
-run_maintenance() {
-  local failed_steps=()
-  local success=true
-  local bootloader="unknown"
-
-  # Detect bootloader type
-  if [ -d "/boot/grub" ] || [ -d "/boot/grub2" ] || pacman -Q grub &>/dev/null; then
-    bootloader="grub"
-  elif [ -d "/boot/loader" ] || [ -d "/efi/loader" ] || command -v bootctl &>/dev/null; then
-    bootloader="systemd-boot"
-  fi
-
-  if ! cleanup_and_optimize; then
-    failed_steps+=("cleanup_and_optimize")
-    success=false
-  fi
-
-  if ! setup_maintenance; then
-    failed_steps+=("setup_maintenance")
-    success=false
-  fi
-
-  if ! cleanup_helpers; then
-    failed_steps+=("cleanup_helpers")
-    success=false
-  fi
-
-  if ! update_mirrorlist; then
-    failed_steps+=("update_mirrorlist")
-    success=false
-  fi
-
-  if ! setup_bootloader_snapshots "$bootloader"; then
-    failed_steps+=("setup_bootloader_snapshots")
-    success=false
-  fi
-
-  if ! setup_btrfs_snapshots; then
-    failed_steps+=("setup_btrfs_snapshots")
-    success=false
-  fi
-
-  echo ""
-  if [ "$success" = true ]; then
-    log_success "All maintenance and optimization steps completed successfully"
-  else
-    log_warning "Maintenance completed with warnings in steps: ${failed_steps[*]}"
-    log_info "Non-critical errors occurred but system should still be usable"
-    return 1
-  fi
-
-  verify_installation "quick"
-  log_info "System is ready for use"
-  return 0
-}
-
-# Execute maintenance with proper error handling
-run_maintenance
+# Run maintenance if script is executed directly
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    main
+fi

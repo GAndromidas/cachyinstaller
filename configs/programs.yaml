@@ -15,6 +15,8 @@ pacman:
       description: "Open-source web browser"
     - name: "cmatrix"
       description: "Matrix-style terminal screensaver"
+    - name: "cpupower"
+      description: "CPU frequency and power management utilities"
     - name: "dosfstools"
       description: "DOS filesystem utilities"
     - name: "duf"
@@ -86,9 +88,11 @@ essential:
     - name: "vlc-plugins-all"
       description: "All VLC plugins (required for VLC functionality)"
 
-# AUR packages for different installation modes
+# AUR packages for different installation modes (using paru - CachyOS default)
 aur:
   default:
+    - name: "dropbox"
+      description: "Cloud storage and file synchronization"
     - name: "onlyoffice-bin"
       description: "Office suite with document, spreadsheet and presentation editors"
     - name: "rustdesk-bin"
@@ -97,12 +101,18 @@ aur:
       description: "Music streaming service"
     - name: "stremio"
       description: "Media streaming platform"
+    - name: "ventoy-bin"
+      description: "Tool to create bootable USB drives for ISO files"
+    - name: "via-bin"
+      description: "VIA keyboard configuration tool"
 
   minimal:
     - name: "onlyoffice-bin"
       description: "Office suite with document, spreadsheet and presentation editors"
     - name: "rustdesk-bin"
       description: "Remote desktop software"
+    - name: "stremio"
+      description: "Media streaming platform"
 
 # Desktop environment specific packages
 desktop_environments:
@@ -152,6 +162,8 @@ desktop_environments:
 flatpak:
   kde:
     default:
+      - name: "io.github.shiftey.Desktop"
+        description: "Desktop environment"
       - name: "it.mijorus.gearlever"
         description: "System tray application launcher"
     minimal:
@@ -162,6 +174,8 @@ flatpak:
     default:
       - name: "com.mattjakeman.ExtensionManager"
         description: "GNOME Extension Manager"
+      - name: "io.github.shiftey.Desktop"
+        description: "Desktop environment"
       - name: "it.mijorus.gearlever"
         description: "System tray application launcher"
     minimal:
@@ -174,6 +188,8 @@ flatpak:
     default:
       - name: "dev.edfloreshz.CosmicTweaks"
         description: "System settings and tweaks"
+      - name: "io.github.shiftey.Desktop"
+        description: "Desktop environment"
       - name: "it.mijorus.gearlever"
         description: "System tray application launcher"
     minimal:

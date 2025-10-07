@@ -1,6 +1,63 @@
 #!/bin/bash
 set -uo pipefail
 
+# Installation log file
+INSTALL_LOG="$HOME/.cachyinstaller.log"
+
+# Function to show help
+show_help() {
+  cat << EOF
+CachyInstaller - CachyOS Post-Installation Enhancement Script
+
+USAGE:
+    ./install.sh [OPTIONS]
+
+OPTIONS:
+    -h, --help      Show this help message and exit
+    -v, --verbose   Enable verbose output (show all package installation details)
+    -q, --quiet     Quiet mode (minimal output)
+    -d, --dry-run   Preview what will be installed without making changes
+
+DESCRIPTION:
+    CachyInstaller enhances a CachyOS installation with additional features
+    and optimizations. It preserves CachyOS's core functionality while adding
+    useful tools, security features, and performance improvements.
+
+INSTALLATION MODES:
+    Standard        Complete setup with all recommended packages
+    Minimal         Essential tools only for lightweight installations
+    Custom          Interactive selection of packages to install
+
+FEATURES:
+    - Desktop environment optimization (KDE, GNOME, Cosmic)
+    - Security hardening (Fail2ban, Firewall)
+    - Gaming mode with performance optimizations
+    - Fish shell enhancements
+    - Btrfs snapshot support
+    - Windows dual-boot detection
+    - Automatic GPU driver configuration
+
+REQUIREMENTS:
+    - Fresh CachyOS installation
+    - Active internet connection
+    - Regular user account with sudo privileges
+    - Minimum 2GB free disk space
+
+EXAMPLES:
+    ./install.sh                Run installer with interactive prompts
+    ./install.sh --verbose      Run with detailed package installation output
+    ./install.sh --help         Show this help message
+
+LOG FILE:
+    Installation log saved to: ~/.cachyinstaller.log
+
+MORE INFO:
+    https://github.com/cachyos/cachyinstaller
+
+EOF
+  exit 0
+}
+
 # Clear terminal for clean interface
 clear
 
@@ -11,31 +68,80 @@ CONFIGS_DIR="$SCRIPT_DIR/configs"
 
 source "$SCRIPTS_DIR/common.sh"
 
+# Initialize log file
+{
+  echo "=========================================="
+  echo "CachyInstaller Installation Log"
+  echo "Started: $(date)"
+  echo "=========================================="
+  echo ""
+} > "$INSTALL_LOG"
+
+# Function to log to both console and file
+log_both() {
+  echo "$1" | tee -a "$INSTALL_LOG"
+}
+
 START_TIME=$(date +%s)
 
-cachy_ascii
+# Parse flags
+VERBOSE=false
+DRY_RUN=false
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      show_help
+      ;;
+    --verbose|-v)
+      VERBOSE=true
+      ;;
+    --quiet|-q)
+      VERBOSE=false
+      ;;
+    --dry-run|-d)
+      DRY_RUN=true
+      VERBOSE=true
+      ;;
+    *)
+      echo "Unknown option: $arg"
+      echo "Use --help for usage information"
+      exit 1
+      ;;
+  esac
+done
+export VERBOSE
+export DRY_RUN
+export INSTALL_LOG
+
+arch_ascii
 
 # Silently install gum for beautiful UI before menu
 if ! command -v gum >/dev/null 2>&1; then
   sudo pacman -S --noconfirm gum >/dev/null 2>&1 || true
 fi
 
-# Check system requirements for CachyOS
+# Check system requirements for new users
 check_system_requirements() {
+  local requirements_failed=false
+
   # Check if running as root
-  check_root_user
+  if [[ $EUID -eq 0 ]]; then
+    echo -e "${RED}Error: This script should NOT be run as root!${RESET}"
+    echo -e "${YELLOW}   Please run as a regular user with sudo privileges.${RESET}"
+    echo -e "${YELLOW}   Example: ./install.sh (not sudo ./install.sh)${RESET}"
+    exit 1
+  fi
 
   # Check if we're on CachyOS
-  if ! grep -qi "cachyos" /etc/os-release 2>/dev/null; then
-    echo -e "${RED}❌ Error: This script is designed specifically for CachyOS!${RESET}"
+  if ! grep -q "CachyOS" /etc/os-release; then
+    echo -e "${RED}Error: This script is designed for CachyOS only!${RESET}"
     echo -e "${YELLOW}   Please run this on a CachyOS installation.${RESET}"
-    echo -e "${YELLOW}   For Arch Linux, use the archinstaller instead.${RESET}"
     exit 1
   fi
 
   # Check internet connection
-  if ! ping -c 1 archlinux.org &>/dev/null; then
-    echo -e "${RED}❌ Error: No internet connection detected!${RESET}"
+  if ! ping -c 1 cachyos.org &>/dev/null; then
+    echo -e "${RED}Error: No internet connection detected!${RESET}"
     echo -e "${YELLOW}   Please check your network connection and try again.${RESET}"
     exit 1
   fi
@@ -43,7 +149,7 @@ check_system_requirements() {
   # Check available disk space (at least 2GB)
   local available_space=$(df / | awk 'NR==2 {print $4}')
   if [[ $available_space -lt 2097152 ]]; then
-    echo -e "${RED}❌ Error: Insufficient disk space!${RESET}"
+    echo -e "${RED}Error: Insufficient disk space!${RESET}"
     echo -e "${YELLOW}   At least 2GB free space is required.${RESET}"
     echo -e "${YELLOW}   Available: $((available_space / 1024 / 1024))GB${RESET}"
     exit 1
@@ -51,305 +157,213 @@ check_system_requirements() {
 }
 
 check_system_requirements
-
-# Show installation mode menu
 show_menu
 export INSTALL_MODE
 
-# Install helper utilities right after menu selection
-if command -v gum >/dev/null 2>&1; then
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Installing Helper Utilities"
-  gum style --foreground 226 "📦 Installing essential helper utilities first..."
-else
-  echo -e "${CYAN}Installing Helper Utilities${RESET}"
-  echo -e "${YELLOW}📦 Installing essential helper utilities first...${RESET}"
+# Dry-run mode banner
+if [ "$DRY_RUN" = true ]; then
+  echo ""
+  echo -e "${YELLOW}========================================${RESET}"
+  echo -e "${YELLOW}         DRY-RUN MODE ENABLED${RESET}"
+  echo -e "${YELLOW}========================================${RESET}"
+  echo -e "${CYAN}Preview mode: No changes will be made${RESET}"
+  echo -e "${CYAN}Package installations will be simulated${RESET}"
+  echo -e "${CYAN}System configurations will be previewed${RESET}"
+  echo ""
+  sleep 2
 fi
 
-# Source common.sh to get access to helper functions
-source "$SCRIPTS_DIR/common.sh"
-
-# Populate and install helper utilities
-populate_helper_utils
-helper_packages=("${HELPER_UTILS[@]}")
-
-if [[ ${#helper_packages[@]} -gt 0 ]]; then
-  log_info "Installing ${#helper_packages[@]} helper utilities: ${helper_packages[*]}"
-  if sudo pacman -S --noconfirm --needed "${helper_packages[@]}"; then
-    log_success "Helper utilities installed successfully"
-    if command -v gum >/dev/null 2>&1; then
-      gum style --foreground 46 "✓ Helper utilities installed"
-    else
-      echo -e "${GREEN}✓ Helper utilities installed${RESET}"
-    fi
-  else
-    log_error "Failed to install some helper utilities"
-    if command -v gum >/dev/null 2>&1; then
-      gum style --foreground 196 "⚠️  Some helper utilities failed to install"
-    else
-      echo -e "${RED}⚠️  Some helper utilities failed to install${RESET}"
-    fi
-  fi
+# Prompt for sudo using UI helpers
+if [ "$DRY_RUN" = false ]; then
+  ui_info "Please enter your sudo password to begin the installation:"
+  sudo -v || { ui_error "Sudo required. Exiting."; exit 1; }
 else
-  log_error "No helper utilities to install"
-fi
-
-echo ""
-
-# Use gum for beautiful sudo prompt if available
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 226 "Please enter your sudo password to begin the installation:"
-  sudo -v || { gum style --foreground 196 "Sudo required. Exiting."; exit 1; }
-else
-  echo -e "${YELLOW}Please enter your sudo password to begin the installation:${RESET}"
-  sudo -v || { echo -e "${RED}Sudo required. Exiting.${RESET}"; exit 1; }
+  ui_info "Dry-run mode: Skipping sudo authentication"
 fi
 
 # Keep sudo alive
-while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
-SUDO_KEEPALIVE_PID=$!
-trap 'kill $SUDO_KEEPALIVE_PID 2>/dev/null' EXIT
-
-# Use gum for beautiful installation start message
-if command -v gum >/dev/null 2>&1; then
-  echo ""
-  gum style --border double --margin "1 2" --padding "1 4" --foreground 46 --border-foreground 46 "🚀 Starting CachyOS Installation"
-  gum style --margin "1 0" --foreground 226 "⏱️  This process will take approximately 10-20 minutes depending on your internet speed."
-  gum style --margin "0 0 1 0" --foreground 226 "💡 You can safely leave this running - it will handle everything automatically!"
+if [ "$DRY_RUN" = false ]; then
+  while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+  SUDO_KEEPALIVE_PID=$!
+  trap 'kill $SUDO_KEEPALIVE_PID 2>/dev/null; save_log_on_exit' EXIT INT TERM
 else
-  echo -e "\n${GREEN}🚀 Starting CachyOS installation...${RESET}"
-  echo -e "${YELLOW}⏱️  This process will take approximately 10-20 minutes depending on your internet speed.${RESET}"
-  echo -e "${YELLOW}💡 You can safely leave this running - it will handle everything automatically!${RESET}"
-  echo ""
+  trap 'save_log_on_exit' EXIT INT TERM
 fi
 
-# Run all installation steps with error handling
-# Show CachyOS information now that user has chosen installation mode
-show_cachyos_info
+# State tracking for error recovery
+STATE_FILE="$HOME/.cachyinstaller.state"
+mkdir -p "$(dirname "$STATE_FILE")"
+
+# Function to mark step as completed
+mark_step_complete() {
+  echo "$1" >> "$STATE_FILE"
+}
+
+# Function to check if step was completed
+is_step_complete() {
+  [ -f "$STATE_FILE" ] && grep -q "^$1$" "$STATE_FILE"
+}
+
+# Function to save log on exit
+save_log_on_exit() {
+  {
+    echo ""
+    echo "=========================================="
+    echo "Installation ended: $(date)"
+    echo "=========================================="
+  } >> "$INSTALL_LOG"
+}
+
+# Installation start header
+print_header "Starting CachyOS Enhancement Installation" \
+  "This process will take approximately 10-20 minutes depending on your internet speed." \
+  "You can safely leave this running - it will handle everything automatically!"
 
 # Step 1: System Preparation
-if command -v gum >/dev/null 2>&1; then
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 1: System Preparation"
-  gum style --foreground 226 "📦 Updating package lists and installing system utilities..."
+if ! is_step_complete "system_preparation"; then
+  print_step_header 1 "$TOTAL_STEPS" "System Preparation"
+  ui_info "Updating package lists and installing system utilities..."
+  step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh" || log_error "System preparation failed"
+  mark_step_complete "system_preparation"
+  ui_success "Step 1 completed"
 else
-  echo -e "${CYAN}═══════════════════════════════════════════════════════════════${RESET}"
-  echo -e "${CYAN}Step 1: System Preparation${RESET}"
-  echo -e "${CYAN}═══════════════════════════════════════════════════════════════${RESET}"
-  echo -e "${YELLOW}📦 Updating package lists and installing system utilities...${RESET}"
+  ui_info "Step 1 (System Preparation) already completed - skipping"
 fi
-step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh" || log_error "System preparation failed"
 
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 1 completed"
+# Step 2: Fish Shell Enhancement
+if ! is_step_complete "shell_setup"; then
+  print_step_header 2 "$TOTAL_STEPS" "Fish Shell Enhancement"
+  ui_info "Enhancing Fish shell with custom configurations..."
+  step "Shell Setup" && source "$SCRIPTS_DIR/shell_setup.sh" || log_error "Shell setup failed"
+  mark_step_complete "shell_setup"
+  ui_success "Step 2 completed"
+else
+  ui_info "Step 2 (Shell Setup) already completed - skipping"
+fi
+
+# Step 3: Programs Installation
+if ! is_step_complete "programs_installation"; then
+  print_step_header 3 "$TOTAL_STEPS" "Programs Installation"
+  ui_info "Installing additional applications..."
+  step "Programs Installation" && source "$SCRIPTS_DIR/programs.sh" || log_error "Programs installation failed"
+  mark_step_complete "programs_installation"
+  ui_success "Step 3 completed"
+else
+  ui_info "Step 3 (Programs Installation) already completed - skipping"
+fi
+
+# Step 4: Gaming Mode
+if ! is_step_complete "gaming_mode"; then
+  print_step_header 4 "$TOTAL_STEPS" "Gaming Mode"
+  ui_info "Setting up gaming optimizations..."
+  step "Gaming Mode" && source "$SCRIPTS_DIR/gaming_mode.sh" || log_error "Gaming Mode failed"
+  mark_step_complete "gaming_mode"
+  ui_success "Step 4 completed"
+else
+  ui_info "Step 4 (Gaming Mode) already completed - skipping"
+fi
+
+# Step 5: Fail2ban Setup
+if ! is_step_complete "fail2ban_setup"; then
+  print_step_header 5 "$TOTAL_STEPS" "Fail2ban Setup"
+  ui_info "Setting up security protection..."
+  step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh" || log_error "Fail2ban setup failed"
+  mark_step_complete "fail2ban_setup"
+  ui_success "Step 5 completed"
+else
+  ui_info "Step 5 (Fail2ban Setup) already completed - skipping"
+fi
+
+# Step 6: System Services
+if ! is_step_complete "system_services"; then
+  print_step_header 6 "$TOTAL_STEPS" "System Services"
+  ui_info "Configuring system services..."
+  step "System Services" && source "$SCRIPTS_DIR/system_services.sh" || log_error "System services failed"
+  mark_step_complete "system_services"
+  ui_success "Step 6 completed"
+else
+  ui_info "Step 6 (System Services) already completed - skipping"
+fi
+
+# Step 7: Maintenance
+if ! is_step_complete "maintenance"; then
+  print_step_header 7 "$TOTAL_STEPS" "Maintenance"
+  ui_info "Setting up system maintenance..."
+  step "Maintenance" && source "$SCRIPTS_DIR/maintenance.sh" || log_error "Maintenance failed"
+  mark_step_complete "maintenance"
+  ui_success "Step 7 completed"
+else
+  ui_info "Step 7 (Maintenance) already completed - skipping"
+fi
+
+if [ "$DRY_RUN" = true ]; then
+  print_header "Dry-Run Preview Completed"
+  echo ""
+  echo -e "${YELLOW}This was a preview run. No changes were made to your system.${RESET}"
+  echo ""
+  echo -e "${CYAN}To perform the actual installation, run:${RESET}"
+  echo -e "${GREEN}  ./install.sh${RESET}"
   echo ""
 else
-  echo -e "${GREEN}✓ Step 1 completed${RESET}"
-fi
-
-# Show shell choice menu for Fish users before shell setup
-if is_fish_shell; then
-  show_shell_choice_menu
-fi
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 2: Shell Setup"
-  if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-    gum style --foreground 226 "🐚 Converting Fish to ZSH with Oh-My-Zsh..."
-  elif [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
-    gum style --foreground 226 "🐠 Enhancing Fish shell with CachyInstaller features..."
-  else
-    gum style --foreground 226 "🐚 Setting up shell configuration..."
-  fi
-else
-  echo -e "${CYAN}Step 2: Shell Setup${RESET}"
-  if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-    echo -e "${YELLOW}🐚 Converting Fish to ZSH with Oh-My-Zsh...${RESET}"
-  elif [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
-    echo -e "${YELLOW}🐠 Enhancing Fish shell with CachyInstaller features...${RESET}"
-  else
-    echo -e "${YELLOW}🐚 Setting up shell configuration...${RESET}"
-  fi
-fi
-step "Shell Setup" && source "$SCRIPTS_DIR/shell_setup.sh" || log_error "Shell setup failed"
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 2 completed"
-  echo ""
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 3: Programs Installation"
-  gum style --foreground 226 "🖥️  Installing applications using paru AUR helper..."
-else
-  echo -e "${GREEN}✓ Step 2 completed${RESET}"
-  echo -e "${CYAN}Step 3: Programs Installation${RESET}"
-  echo -e "${YELLOW}🖥️  Installing applications using paru AUR helper...${RESET}"
-fi
-step "Programs Installation" && source "$SCRIPTS_DIR/programs.sh" || log_error "Programs installation failed"
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 3 completed"
-  echo ""
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 4: Gaming Mode"
-  gum style --foreground 226 "🎮 Setting up gaming tools..."
-else
-  echo -e "${GREEN}✓ Step 3 completed${RESET}"
-  echo -e "${CYAN}Step 4: Gaming Mode${RESET}"
-  echo -e "${YELLOW}🎮 Setting up gaming tools...${RESET}"
-fi
-step "Gaming Mode" && source "$SCRIPTS_DIR/gaming_mode.sh" || log_error "Gaming Mode failed"
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 4 completed"
-  echo ""
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 5: Fail2ban Setup"
-  gum style --foreground 226 "🛡️  Setting up security protection for SSH..."
-else
-  echo -e "${GREEN}✓ Step 4 completed${RESET}"
-  echo -e "${CYAN}Step 5: Fail2ban Setup${RESET}"
-  echo -e "${YELLOW}🛡️  Setting up security protection for SSH...${RESET}"
-fi
-step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh" || log_error "Fail2ban setup failed"
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 5 completed"
-  echo ""
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 6: System Services"
-  gum style --foreground 226 "⚙️  Configuring system services and desktop environment..."
-else
-  echo -e "${GREEN}✓ Step 5 completed${RESET}"
-  echo -e "${CYAN}Step 6: System Services${RESET}"
-  echo -e "${YELLOW}⚙️  Configuring system services and desktop environment...${RESET}"
-fi
-step "System Services" && source "$SCRIPTS_DIR/system_services.sh" || log_error "System services failed"
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 6 completed"
-  echo ""
-  gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step 7: Maintenance"
-  gum style --foreground 226 "🧹 Setting up system maintenance..."
-else
-  echo -e "${GREEN}✓ Step 6 completed${RESET}"
-  echo -e "${CYAN}Step 7: Maintenance${RESET}"
-  echo -e "${YELLOW}🧹 Setting up system maintenance...${RESET}"
-fi
-step "Maintenance" && source "$SCRIPTS_DIR/maintenance.sh" || log_error "Maintenance setup failed"
-
-if command -v gum >/dev/null 2>&1; then
-  gum style --foreground 46 "✓ Step 7 completed"
-  echo ""
-else
-  echo -e "${GREEN}✓ Step 7 completed${RESET}"
-  echo -e "\n${CYAN}═══════════════════════════════════════════════════════════════${RESET}"
-  echo -e "${GREEN}🎉 INSTALLATION COMPLETED SUCCESSFULLY! 🎉${RESET}"
-  echo -e "${CYAN}═══════════════════════════════════════════════════════════════${RESET}"
+  print_header "CachyOS Enhancement Completed Successfully"
 fi
 
 echo ""
-echo -e "${YELLOW}🎯 What's been set up for you:${RESET}"
-echo -e "  • 🖥️  Desktop environment with essential applications"
-echo -e "  • 🎮 Complete gaming setup (Steam, Lutris, Wine, MangoHud)"
-echo -e "  • 🛡️  Security features (UFW firewall, Fail2ban, SSH protection)"
-if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-  echo -e "  • 🐚 ZSH shell with Oh-My-Zsh (converted from Fish)"
-elif [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
-  echo -e "  • 🐠 Enhanced Fish shell (CachyOS configuration preserved)"
-else
-  echo -e "  • 🐚 Optimized shell configuration"
-fi
-echo -e "  • 🔧 System services and desktop tweaks"
-echo -e "  • 📦 AUR packages using CachyOS default paru"
-echo -e "  • ⚡ All CachyOS optimizations preserved"
+echo -e "${YELLOW}What's been set up for you:${RESET}"
+echo -e "  - Enhanced Fish shell configuration"
+echo -e "  - Additional applications and tools"
+echo -e "  - Security features (firewall, SSH protection)"
+echo -e "  - Gaming optimizations"
+echo -e "  - Laptop optimizations (if laptop detected)"
+echo -e "  - Btrfs snapshots (if Btrfs filesystem detected)"
+echo -e "  - Dual-boot with Windows (if detected)"
 echo ""
 
-# Show installation summary
-show_installation_summary
-
-# Disable Fish notifications immediately if converting to ZSH to prevent interference
-if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-  if [[ -f "/usr/share/cachyos-fish-config/conf.d/done.fish" ]]; then
-    sudo mv "/usr/share/cachyos-fish-config/conf.d/done.fish" "/usr/share/cachyos-fish-config/conf.d/done.fish.disabled" 2>/dev/null || true
-  fi
-  # Kill any remaining Fish processes to prevent interference
-  pkill -f "fish" 2>/dev/null || true
-  # Switch to bash for final operations
-  export SHELL="/bin/bash"
+if declare -f print_programs_summary >/dev/null 2>&1; then
+  print_programs_summary
 fi
 
-# Handle installation results with gum styling
+print_summary
+log_performance "Total installation time"
+
+# Save final log
+{
+  echo ""
+  echo "=========================================="
+  echo "Installation Summary"
+  echo "=========================================="
+  echo "Completed steps:"
+  [ -f "$STATE_FILE" ] && cat "$STATE_FILE" | sed 's/^/  - /'
+  echo ""
+  if [ ${#ERRORS[@]} -gt 0 ]; then
+    echo "Errors encountered:"
+    for error in "${ERRORS[@]}"; do
+      echo "  - $error"
+    done
+  fi
+  echo ""
+  echo "Installation log saved to: $INSTALL_LOG"
+} >> "$INSTALL_LOG"
+
+# Handle installation results with unified styling
 if [ ${#ERRORS[@]} -eq 0 ]; then
-  if command -v gum >/dev/null 2>&1; then
-    echo ""
-    gum style --foreground 46 "✅ All steps completed successfully!"
-    gum style --foreground 226 "🧹 Cleaning up installer files..."
-  else
-    echo -e "\n${GREEN}✅ All steps completed successfully!${RESET}"
-    echo -e "${YELLOW}🧹 Cleaning up installer files...${RESET}"
-  fi
-
-  cd "$SCRIPT_DIR/.."
-  rm -rf "$(basename "$SCRIPT_DIR")"
-  if command -v gum >/dev/null 2>&1; then
-    gum style --foreground 46 "✓ Installer files cleaned up"
-  else
-    echo -e "${GREEN}✓ Installer files cleaned up${RESET}"
-  fi
-
-  echo ""
-  if command -v gum >/dev/null 2>&1; then
-    gum style --border double --margin "1 2" --padding "1 4" --foreground 46 --border-foreground 46 "🎉 CachyInstaller Complete!"
-    gum style --margin "1 0" --foreground 226 "Your CachyOS gaming system is now ready!"
-    echo ""
-    gum style --margin "1 0" --foreground 51 "📝 Installation log saved to: ~/cachyinstaller.log"
-    if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-      gum style --margin "0 0 1 0" --foreground 196 "⚠️  Please reboot to complete shell changes!"
-      echo ""
-      gum style --foreground 226 "Would you like to reboot now? (Recommended for inexperienced users)"
-      if gum confirm "Reboot system now?"; then
-        gum style --foreground 46 "🔄 Rebooting system in 3 seconds..."
-        sleep 3
-        sudo reboot
-      else
-        gum style --foreground 226 "⚠️  Remember to reboot manually to complete installation!"
-      fi
-    else
-      gum style --margin "0 0 1 0" --foreground 46 "🔄 Restart your terminal to see all changes."
-    fi
-  else
-    echo -e "${GREEN}╔═══════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${GREEN}║                                   ║${RESET}"
-    echo -e "${GREEN}║    🎉 CachyInstaller Complete!    ║${RESET}"
-    echo -e "${GREEN}║                                   ║${RESET}"
-    echo -e "${GREEN}╚═══════════════════════════════════════════════════════════╝${RESET}"
-    echo ""
-    echo -e "${YELLOW}Your CachyOS gaming system is now ready!${RESET}"
-    echo ""
-    echo -e "${CYAN}📝 Installation log saved to: ~/cachyinstaller.log${RESET}"
-    echo ""
-    if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-      echo -e "${RED}⚠  Please reboot to complete shell changes!${RESET}"
-      echo ""
-      echo -e "${YELLOW}Would you like to reboot now? (Recommended for inexperienced users)${RESET}"
-      read -p "Reboot system now? [Y/n]: " -r reboot_choice
-      if [[ "$reboot_choice" =~ ^[Yy]$|^$ ]]; then
-        echo -e "${GREEN}🔄 Rebooting system in 3 seconds...${RESET}"
-        sleep 3
-        sudo reboot
-      else
-        echo -e "${YELLOW}⚠️  Remember to reboot manually to complete installation!${RESET}"
-      fi
-    else
-      echo -e "${GREEN}🔄 Restart your terminal to see all changes.${RESET}"
-    fi
-  fi
+  ui_success "All steps completed successfully"
+  ui_info "Installation log saved to: $INSTALL_LOG"
 else
+  ui_warn "Some errors occurred during installation:"
   if command -v gum >/dev/null 2>&1; then
-    gum style --foreground 196 "⚠️  Installation completed with some errors."
-    gum style --foreground 226 "Check the log file for details: $HOME/cachyinstaller.log"
+    for error in "${ERRORS[@]}"; do
+      echo "   - $error" | gum style --foreground 196
+    done
   else
-    echo -e "${YELLOW}⚠️  Installation completed with some errors.${RESET}"
-    echo -e "${YELLOW}Check the log file for details: $HOME/cachyinstaller.log${RESET}"
+    for error in "${ERRORS[@]}"; do
+      echo -e "${RED}   - $error${RESET}"
+    done
   fi
+  ui_info "Most errors are non-critical and your system should still work."
+  ui_info "Installation log saved to: $INSTALL_LOG"
+  ui_info "State file saved to: $STATE_FILE"
+  ui_info "You can run the installer again to resume from the last successful step."
 fi
 
-# Keep sudo alive killer
-trap - EXIT
-kill $SUDO_KEEPALIVE_PID 2>/dev/null || true
-
-exit 0
+prompt_reboot

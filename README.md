@@ -1,13 +1,7 @@
 # CachyInstaller
-# CachyInstaller
 
 A powerful post-installation script for CachyOS that transforms your system into an optimized gaming environment.
 
-![CachyInstaller Logo](images/cachyinstaller.png)
-
----
-
-## Demo
 ## Overview
 
 <img width="820" height="444" alt="Screenshot_20250918_081412" src="https://github.com/user-attachments/assets/bb676b34-ae3f-4625-b8c9-7338c116c85e" />

@@ -418,9 +418,8 @@ log_performance "Total installation time"
 # Handle installation results with unified styling
 if [ ${#ERRORS[@]} -eq 0 ]; then
   ui_success "All steps completed successfully"
-  ui_info "Installation log saved to: $INSTALL_LOG"
-  # Cleanup state files on successful completion
-  rm -f "$STATE_FILE" "$CONFIG_FILE"
+  # Clean up everything if installation was successful
+  cleanup_on_exit
 else
   ui_warn "Some errors occurred during installation:"
   if command -v gum >/dev/null 2>&1; then
@@ -452,20 +451,35 @@ CURRENT_SHELL=$SHELL
 export CURRENT_SHELL
 
 # Handle reboot
-if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-  echo -e "\n${RED}A reboot is REQUIRED to complete shell changes!${RESET}"
-  echo -e "${YELLOW}Your system will reboot in 10 seconds...${RESET}"
-  echo -e "${YELLOW}Press Ctrl+C to cancel reboot${RESET}"
-  sleep 10
-  sudo reboot
-else
-  # Unified reboot prompt that works in both Bash and Fish
-  read -p "Would you like to reboot now? [Y/n]: " response
-  response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
-  if [[ -z "$response" || "$response" == "y" || "$response" == "yes" ]]; then
-      echo -e "\n${GREEN}Rebooting system...${RESET}"
-      sleep 2
-      sudo reboot
+if [ ${#ERRORS[@]} -eq 0 ]; then
+  # Install figlet if not present
+  if ! command -v figlet >/dev/null 2>&1; then
+    sudo pacman -S --noconfirm figlet >/dev/null 2>&1
+  fi
+
+  echo -e "\n${CYAN}"
+  figlet "Reboot System"
+  echo -e "${RESET}"
+
+  if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
+    echo -e "\n${RED}A reboot is REQUIRED to complete shell changes!${RESET}"
+    echo -e "${YELLOW}Your system will reboot in 10 seconds...${RESET}"
+    echo -e "${YELLOW}Press Ctrl+C to cancel reboot${RESET}"
+    read -t 10 -p "" || true
+    cleanup_on_exit
+    sudo reboot
+  else
+    # Unified reboot prompt that works in both Bash and Fish
+    read -p "Would you like to reboot now? [Y/n]: " response
+    response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+    if [[ -z "$response" || "$response" == "y" || "$response" == "yes" ]]; then
+        cleanup_on_exit
+        echo -e "\n${GREEN}Rebooting system...${RESET}"
+        sleep 2
+        sudo reboot
+    else
+        cleanup_on_exit
+    fi
   fi
 fi
 

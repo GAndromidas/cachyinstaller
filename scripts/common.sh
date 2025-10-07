@@ -41,14 +41,53 @@ install_packages_quietly() {
 }
 
 cleanup_on_exit() {
-    log_performance "Total runtime"
-    {
-        echo -e "\nFinal Status:"
-        echo "Packages installed: ${#INSTALLED_PACKAGES[@]}"
-        echo "Warnings: ${#WARNINGS[@]}"
-        echo "Errors: ${#ERRORS[@]}"
-        echo -e "\nInstallation ended: $(date)"
-    } >> "$INSTALL_LOG"
+log_performance "Total runtime"
+{
+    echo -e "\nFinal Status:"
+    echo "Packages installed: ${#INSTALLED_PACKAGES[@]}"
+    echo "Warnings: ${#WARNINGS[@]}"
+    echo "Errors: ${#ERRORS[@]}"
+    echo -e "\nInstallation ended: $(date)"
+} >> "$INSTALL_LOG"
+
+# Only clean up if installation was successful
+if [ ${#ERRORS[@]} -eq 0 ]; then
+    echo -e "\n${GREEN}Cleaning up installation files...${RESET}"
+
+    # Save current directory
+    local current_dir="$PWD"
+
+    # Change to home directory first
+    cd "$HOME"
+
+    # Remove installer files safely
+    if [ -f "$HOME/.cachyinstaller.log" ]; then
+        rm -f "$HOME/.cachyinstaller.log"
+    fi
+    if [ -f "$HOME/.cachyinstaller.state" ]; then
+        rm -f "$HOME/.cachyinstaller.state"
+    fi
+    if [ -f "$HOME/.cachyinstaller.conf" ]; then
+        rm -f "$HOME/.cachyinstaller.conf"
+    fi
+
+    # Remove the installer directory if it exists
+    if [ -d "$HOME/cachyinstaller" ]; then
+        rm -rf "$HOME/cachyinstaller"
+    fi
+
+    # Remove temporary UI tools if they were installed by us
+    if command -v gum >/dev/null 2>&1; then
+        sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
+    fi
+    if command -v figlet >/dev/null 2>&1; then
+        sudo pacman -Rns --noconfirm figlet >/dev/null 2>&1 || true
+    fi
+
+    echo -e "${GREEN}Cleanup complete!${RESET}"
+
+    # No need to return to previous directory since we're about to reboot
+fi
 }
 
 cleanup_on_error() {

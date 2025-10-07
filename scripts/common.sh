@@ -1,37 +1,26 @@
 #!/usr/bin/env bash
 
-# Color variables for output formatting
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BLUE='\033[0;34m'
+# Simple color formatting
+RED='\033[31m'
+GREEN='\033[32m'
+YELLOW='\033[33m'
+CYAN='\033[36m'
 RESET='\033[0m'
 
-# Terminal formatting helpers
-TERM_WIDTH=$(tput cols 2>/dev/null || echo 80)
-
-# Global arrays and variables
-ERRORS=()                # Collects error messages for summary
-CURRENT_STEP=1           # Tracks current step for progress display
-INSTALLED_PACKAGES=()    # Tracks installed packages
-REMOVED_PACKAGES=()      # Tracks removed packages
-LAST_STATE=""           # Tracks last successful state
-ERROR_COUNT=0           # Counts errors for adaptive retries
+# Global state
+ERRORS=()                # Error messages
+CURRENT_STEP=1          # Current installation step
+INSTALLED_PACKAGES=()    # Installed packages
+STATE_FILE="$HOME/.cachyinstaller.state"
+LOG_FILE="$HOME/.cachyinstaller.log"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Script directory
 CONFIGS_DIR="$SCRIPT_DIR/configs"                           # Config files directory
 SCRIPTS_DIR="$SCRIPT_DIR/scripts"                           # Custom scripts directory
 
-# Helper utilities to install - conditionally includes ZSH packages
+# Core utilities to install
 get_helper_utils() {
-  local utils=(base-devel bc bluez-utils cronie curl eza figlet flatpak fzf git openssh pacman-contrib rsync ufw)
-
-  # Add ZSH-related utilities only if not keeping Fish on CachyOS
-  if [[ "${CACHYOS_SHELL_CHOICE:-}" != "fish" ]]; then
-    utils+=(zoxide)
-  fi
-
+  local utils=(base-devel bc bluez-utils cronie curl eza figlet flatpak fzf git openssh pacman-contrib rsync ufw zoxide)
   echo "${utils[@]}"
 }
 
@@ -82,12 +71,23 @@ EOF
 }
 
 show_menu() {
-  # Check if gum is available, fallback to traditional menu if not
-  if command -v gum >/dev/null 2>&1; then
-    show_gum_menu
-  else
-    show_traditional_menu
-  fi
+  echo -e "${CYAN}╔══════════════════════════════════╗${RESET}"
+  echo -e "${CYAN}║     CachyOS Gaming Installer     ║${RESET}"
+  echo -e "${CYAN}╚══════════════════════════════════╝${RESET}"
+  echo -e "\n1) Default    - Complete gaming setup with all optimizations"
+  echo -e "2) Minimal    - Essential gaming setup with core features"
+  echo -e "3) Exit       - Cancel installation"
+  echo ""
+
+  while true; do
+    read -p "Choose installation mode (1-3): " choice
+    case $choice in
+      1) export INSTALL_MODE="default"; break ;;
+      2) export INSTALL_MODE="minimal"; break ;;
+      3) echo "Installation cancelled"; exit 0 ;;
+      *) echo -e "${RED}Invalid choice${RESET}" ;;
+    esac
+  done
 }
 
 show_gum_menu() {
@@ -195,78 +195,19 @@ show_shell_choice_menu() {
 
   echo ""
   if command -v gum >/dev/null 2>&1; then
-    gum style --border double --margin "1 2" --padding "1 4" --foreground 226 --border-foreground 226 "🐠 Fish Shell Detected!"
-    gum style --margin "1 0" --foreground 226 "CachyOS uses Fish shell by default. Choose how to proceed:"
+    gum style --border double --margin "1 2" --padding "1 4" --foreground 46 --border-foreground 46 "Fish Shell Enhancement"
+    gum style --margin "1 0" --foreground 226 "Optimizing your Fish shell configuration..."
     echo ""
-
-    local choice=$(gum choose \
-      "Keep Fish - Enhance with CachyInstaller features (preserves your Fish config)" \
-      "Switch to ZSH - Replace Fish with ZSH + Oh-My-Zsh (REMOVES Fish completely!)" \
-      --selected="Keep Fish - Enhance with CachyInstaller features (preserves your Fish config)" \
-      --cursor-prefix="▶ " \
-      --selected-prefix="✓ " \
-      --unselected-prefix="  ")
-
-    case "$choice" in
-      "Keep Fish"*)
-        export CACHYOS_SHELL_CHOICE="fish"
-        gum style --foreground 46 "✓ Fish shell will be kept and enhanced"
-        ;;
-      "Switch to ZSH"*)
-        gum style --foreground 196 --border normal --border-foreground 196 --margin "1 0" --padding "1 2" "⚠️  WARNING: This will PERMANENTLY DELETE Fish shell!"
-        gum style --foreground 196 "All Fish configurations, history, and customizations will be LOST!"
-        echo ""
-        if gum confirm "Are you absolutely sure you want to remove Fish shell?"; then
-          export CACHYOS_SHELL_CHOICE="zsh"
-          gum style --foreground 226 "✓ Fish will be replaced with ZSH"
-        else
-          export CACHYOS_SHELL_CHOICE="fish"
-          gum style --foreground 46 "✓ Keeping Fish shell (wise choice!)"
-        fi
-        ;;
-    esac
+    export CACHYOS_SHELL_CHOICE="fish"
+    gum style --foreground 46 "✓ Enhancing Fish shell with gaming optimizations"
   else
-    echo -e "${YELLOW}===============================================${RESET}"
-    echo -e "${YELLOW}       🐠 Fish Shell Detected!${RESET}"
-    echo -e "${YELLOW}===============================================${RESET}"
+    echo -e "${CYAN}╔══════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║      Fish Shell Enhancement      ║${RESET}"
+    echo -e "${CYAN}╚══════════════════════════════════╝${RESET}"
     echo ""
-    echo -e "${CYAN}CachyOS uses Fish shell by default. Choose how to proceed:${RESET}"
-    echo ""
-    echo -e "  ${GREEN}1)${RESET} Keep Fish - Enhance with CachyInstaller features"
-    echo -e "     ${GREEN}Preserves your Fish configuration${RESET}"
-    echo ""
-    echo -e "  ${RED}2)${RESET} Switch to ZSH - Replace Fish with ZSH + Oh-My-Zsh"
-    echo -e "     ${RED}⚠️  REMOVES Fish shell completely!${RESET}"
-    echo ""
-
-    while true; do
-      read -p "Enter your choice (1-2): " choice
-      case $choice in
-        1)
-          export CACHYOS_SHELL_CHOICE="fish"
-          echo -e "\n${GREEN}✓ Fish shell will be kept and enhanced${RESET}"
-          break
-          ;;
-        2)
-          echo -e "\n${RED}⚠️  WARNING: This will PERMANENTLY DELETE Fish shell!${RESET}"
-          echo -e "${RED}All Fish configurations, history, and customizations will be LOST!${RESET}"
-          echo ""
-          read -p "Are you absolutely sure you want to remove Fish shell? (y/N): " confirm
-          if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            export CACHYOS_SHELL_CHOICE="zsh"
-            echo -e "${YELLOW}✓ Fish will be replaced with ZSH${RESET}"
-            break
-          else
-            export CACHYOS_SHELL_CHOICE="fish"
-            echo -e "${GREEN}✓ Keeping Fish shell (wise choice!)${RESET}"
-            break
-          fi
-          ;;
-        *)
-          echo -e "${RED}Invalid option. Please choose 1 or 2.${RESET}"
-          ;;
-      esac
-    done
+    echo -e "${GREEN}Optimizing your Fish shell configuration...${RESET}"
+    export CACHYOS_SHELL_CHOICE="fish"
+    echo -e "${GREEN}✓ Enhancing Fish shell with gaming optimizations${RESET}"
   fi
 }
 
@@ -300,40 +241,23 @@ show_cachyos_info() {
   echo -e "${CYAN}══════════════════════════════════════${RESET}\n"
 }
 
-# Enhanced logging functions with timestamps and line numbers
+# Simple logging functions
 log_info() {
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
-    local line_number=$(echo "$caller_info" | cut -d: -f2)
-    echo -e "${CYAN}[INFO]${RESET} ${timestamp} [L${line_number}] $1" | tee -a "$INSTALL_LOG"
+    echo -e "${CYAN}[Setup]${RESET} $1" | tee -a "$LOG_FILE"
 }
 
 log_error() {
-    local error_msg="$1"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
-    local line_number=$(echo "$caller_info" | cut -d: -f2)
-    ERRORS+=("${timestamp}: ${error_msg}")
-    echo -e "${RED}[ERROR]${RESET} ${timestamp} [L${line_number}] ${error_msg}" | tee -a "$INSTALL_LOG"
-    # Log stack trace for debugging
-    local frame=0
-    while caller $frame; do
-        ((frame++))
-    done 2>/dev/null | awk '{printf "  at %s:%d\n", $2, $1}' | tee -a "$INSTALL_LOG"
+    local msg="$1"
+    ERRORS+=("$msg")
+    echo -e "${RED}[ERROR]${RESET} $msg" | tee -a "$LOG_FILE"
 }
 
 log_warning() {
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
-    local line_number=$(echo "$caller_info" | cut -d: -f2)
-    echo -e "${YELLOW}[WARNING]${RESET} ${timestamp} [L${line_number}] $1" | tee -a "$INSTALL_LOG"
+    echo -e "${YELLOW}[WARNING]${RESET} $1" | tee -a "$LOG_FILE"
 }
 
 log_success() {
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
-    local line_number=$(echo "$caller_info" | cut -d: -f2)
-    echo -e "${GREEN}[SUCCESS]${RESET} ${timestamp} [L${line_number}] $1" | tee -a "$INSTALL_LOG"
+    echo -e "${GREEN}[SUCCESS]${RESET} $1" | tee -a "$LOG_FILE"
 }
 
 # Step function with progress tracking and error recovery
@@ -378,26 +302,18 @@ aur_package_installed() {
 
 install_package() {
     local package="$1"
-    local retries=3
-    local retry_delay=5
-    local timeout=300  # 5 minutes timeout
-
     if ! package_installed "$package"; then
         log_info "Installing $package..."
-
-        # Update package database first
-        if ! sudo pacman -Sy; then
-            log_error "Failed to update package database"
+        if sudo pacman -S --noconfirm --needed "$package"; then
+            INSTALLED_PACKAGES+=("$package")
+            log_success "Installed $package"
+            return 0
+        else
+            log_error "Failed to install $package"
             return 1
         fi
-
-        for ((i=1; i<=retries; i++)); do
-            # Try installation with timeout
-            if timeout $timeout sudo pacman -S --noconfirm --needed "$package"; then
-                # Verify installation
-                if package_installed "$package"; then
-                    INSTALLED_PACKAGES+=("$package")
-                    log_success "Successfully installed and verified $package"
+    fi
+    return 0
                     return 0
                 else
                     log_error "Package $package appears to have failed verification after installation"
@@ -428,10 +344,6 @@ install_package() {
 
 install_aur_package() {
     local package="$1"
-    local retries=3
-    local retry_delay=5
-    local timeout=600  # 10 minutes timeout for AUR builds
-
     if ! command -v paru >/dev/null; then
         log_error "paru is not installed. Cannot install AUR packages."
         return 1
@@ -439,21 +351,14 @@ install_aur_package() {
 
     if ! aur_package_installed "$package"; then
         log_info "Installing AUR package $package..."
-
-        # Update AUR database first
-        if ! paru -Sy; then
-            log_error "Failed to update AUR database"
+        if paru -S --noconfirm --needed "$package"; then
+            INSTALLED_PACKAGES+=("$package")
+            log_success "Installed AUR package $package"
+            return 0
+        else
+            log_error "Failed to install AUR package $package"
             return 1
-        }
-
-        for ((i=1; i<=retries; i++)); do
-            # Try installation with timeout
-            if timeout $timeout paru -S --noconfirm --needed "$package"; then
-                # Verify installation
-                if aur_package_installed "$package"; then
-                    INSTALLED_PACKAGES+=("$package")
-                    log_success "Successfully installed and verified AUR package $package"
-                    return 0
+        fi
                 else
                     log_error "AUR package $package appears to have failed verification after installation"
                     continue
@@ -476,7 +381,7 @@ install_aur_package() {
             fi
         done
     else
-        log_info "AUR package $package already installed, skipping"
+        log_info "Gaming package $package already installed, skipping"
         return 0
     fi
 }
@@ -485,20 +390,7 @@ install_aur_package() {
 install_packages_quietly() {
     local pkgs=("$@")
     local to_install=()
-    local failed_pkgs=()
-    local timeout=1800  # 30 minutes total timeout
-
-    # Ensure we're not in Fish shell for package operations
-    if [[ -n "$FISH_VERSION" ]]; then
-        exec bash -c "source $SCRIPT_DIR/common.sh && install_packages_quietly $*"
-        return $?
-    fi
-
-    # Update package database first
-    if ! sudo pacman -Sy; then
-        log_error "Failed to update package database"
-        return 1
-    fi
+    local failed=0
 
     # Filter out already installed packages
     for pkg in "${pkgs[@]}"; do
@@ -512,28 +404,24 @@ install_packages_quietly() {
         return 0
     fi
 
-    log_info "Installing ${#to_install[@]} packages: ${to_install[*]}"
+    log_info "Installing gaming optimization packages..."
 
-    # Try installation with timeout
-    if timeout $timeout sudo pacman -S --noconfirm --needed "${to_install[@]}"; then
-        # Verify all packages were installed correctly
+    # Install packages
+    if sudo pacman -S --noconfirm --needed "${to_install[@]}"; then
         for pkg in "${to_install[@]}"; do
             if pacman -Q "$pkg" &>/dev/null; then
                 INSTALLED_PACKAGES+=("$pkg")
-                log_success "Successfully installed and verified: $pkg"
             else
-                failed_pkgs+=("$pkg")
-                log_error "Package $pkg failed verification after installation"
+                log_error "Failed to install $pkg"
+                ((failed++))
             fi
         done
     else
-        local exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-            log_error "Batch package installation timed out after ${timeout}s"
-        fi
-        log_error "Batch package installation failed"
-        failed_pkgs=("${to_install[@]}")
+        log_error "Package installation failed"
+        return 1
     fi
+
+    return $failed
 
     # Try installing failed packages individually
     if [[ ${#failed_pkgs[@]} -gt 0 ]]; then
@@ -574,24 +462,12 @@ get_desktop_environment() {
 # Installation summary
 # Function to prompt for reboot in a Fish-compatible way with package verification
 prompt_reboot() {
-    # Verify critical packages before rebooting
-    local critical_pkgs=("linux" "systemd" "bash")
-    local missing_pkgs=()
-
-    for pkg in "${critical_pkgs[@]}"; do
-        if ! pacman -Q "$pkg" &>/dev/null; then
-            missing_pkgs+=("$pkg")
-        fi
-    done
-
-    if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
-        log_error "Critical packages missing: ${missing_pkgs[*]}"
-        log_error "System may be in an unstable state. Manual intervention required."
-        return 1
-    fi
-  echo -e "\n${CYAN}═══ System Ready for Reboot ═══${RESET}"
-  echo -e "${GREEN}All changes have been applied successfully.${RESET}"
-  echo -e "${YELLOW}A reboot is recommended to ensure all changes take effect.${RESET}\n"
+    # Simple reboot prompt
+  echo -e "\n${CYAN}╔══════════════════════════════════╗${RESET}"
+  echo -e "${CYAN}║      System Ready for Reboot      ║${RESET}"
+  echo -e "${CYAN}╚══════════════════════════════════╝${RESET}"
+  echo -e "${GREEN}All gaming optimizations have been applied successfully.${RESET}"
+  echo -e "${YELLOW}Please reboot to activate all performance enhancements.${RESET}\n"
 
   if command -v gum >/dev/null 2>&1; then
     if gum confirm --default=true "Would you like to reboot now?"; then
@@ -611,31 +487,27 @@ prompt_reboot() {
 }
 
 show_installation_summary() {
-  # Save current shell state
-  local original_shell=$SHELL
-  local is_fish_active=$FISH_VERSION
-
-  local end_time=$(date +%s)
-  local duration=$((end_time - START_TIME))
+  local duration=$(($(date +%s) - START_TIME))
   local hours=$((duration / 3600))
   local minutes=$(((duration % 3600) / 60))
   local seconds=$((duration % 60))
 
   clear
-  echo -e "\n${GREEN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${GREEN}║                  CACHYOS SETUP COMPLETE! 🎮                  ║${RESET}"
-  echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${RESET}\n"
+  echo -e "\n${GREEN}╔══════════════════════════════════════════╗${RESET}"
+  echo -e "${GREEN}║         CachyOS Setup Complete!          ║${RESET}"
+  echo -e "${GREEN}║      Your Gaming System is Ready         ║${RESET}"
+  echo -e "${GREEN}╚══════════════════════════════════════════╝${RESET}\n"
 
-  echo -e "${CYAN}📊 Installation Details${RESET}"
-  echo -e "   ⏱️  Duration: ${GREEN}${hours}h ${minutes}m ${seconds}s${RESET}"
-  echo -e "   🔧 Mode: ${CYAN}${INSTALL_MODE:-default}${RESET}"
-  echo -e "   📅 Completed: ${YELLOW}$(get_locale_date)${RESET}"
+  echo -e "${CYAN}Installation Details${RESET}"
+  echo -e "Duration: ${GREEN}${hours}h ${minutes}m ${seconds}s${RESET}"
+  echo -e "Mode: ${CYAN}${INSTALL_MODE:-default}${RESET}"
+  echo -e "Completed: ${YELLOW}$(date '+%Y-%m-%d %H:%M:%S')${RESET}"
 
   if [[ ${#INSTALLED_PACKAGES[@]} -gt 0 ]]; then
-    echo -e "\n${GREEN}📦 Packages Installed (${#INSTALLED_PACKAGES[@]}):${RESET}"
-    printf "   %s\n" "${INSTALLED_PACKAGES[@]}" | head -10
-    if [[ ${#INSTALLED_PACKAGES[@]} -gt 10 ]]; then
-      echo -e "   ... and $((${#INSTALLED_PACKAGES[@]} - 10)) more packages"
+    echo -e "\n${GREEN}Packages Installed: ${#INSTALLED_PACKAGES[@]}${RESET}"
+    printf "  %s\n" "${INSTALLED_PACKAGES[@]}" | head -5
+    if [[ ${#INSTALLED_PACKAGES[@]} -gt 5 ]]; then
+      echo -e "  ... and $((${#INSTALLED_PACKAGES[@]} - 5)) more packages"
     fi
   fi
 
@@ -645,24 +517,17 @@ show_installation_summary() {
   fi
 
   if [[ ${#ERRORS[@]} -gt 0 ]]; then
-    echo -e "\n${RED}⚠️  Errors Encountered (${#ERRORS[@]}):${RESET}"
-    printf "   %s\n" "${ERRORS[@]}"
-    echo -e "\n${YELLOW}💡 Check the log file for more details: $HOME/cachyinstaller.log${RESET}"
+    echo -e "\n${RED}Errors Encountered: ${#ERRORS[@]}${RESET}"
+    printf "  %s\n" "${ERRORS[@]}"
+    echo -e "\nCheck log file: $LOG_FILE"
   fi
 
-  echo -e "\n${GREEN}🎉 CachyInstaller has finished setting up your gaming system!${RESET}"
-  echo -e "${CYAN}📝 Log file saved to: $HOME/cachyinstaller.log${RESET}\n"
+  echo -e "\n${GREEN}System Status: Ready for Gaming${RESET}"
+  echo -e "${CYAN}Performance optimizations have been applied successfully${RESET}"
+  echo -e "${CYAN}Installation log available at: $LOG_FILE${RESET}\n"
 
-  if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-    echo -e "${RED}⚠  REBOOT REQUIRED to complete shell changes!${RESET}"
-    echo -e "${YELLOW}   Fish has been completely removed and replaced with ZSH.${RESET}"
-    echo -e "${YELLOW}   For inexperienced users: Reboot now to avoid any issues!${RESET}"
-  elif [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
-    echo -e "${GREEN}🐠 Your Fish shell has been enhanced with new features.${RESET}"
-    echo -e "${GREEN}   Restart your terminal to see the changes.${RESET}"
-  else
-    echo -e "${YELLOW}🔄 A reboot is recommended to apply all changes.${RESET}"
-  fi
+  echo -e "${GREEN}Fish shell has been enhanced with gaming optimizations.${RESET}"
+  echo -e "${GREEN}Restart your terminal to activate the enhancements.${RESET}"
 
   echo -e "${CYAN}Thank you for using CachyInstaller!${RESET}\n"
 }

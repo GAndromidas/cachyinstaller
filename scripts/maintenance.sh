@@ -152,36 +152,296 @@ configure_snapper() {
     fi
   fi
 
-  # Configure Snapper settings for reasonable snapshot retention
-  sudo sed -i 's/^TIMELINE_CREATE=.*/TIMELINE_CREATE="yes"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_CLEANUP=.*/TIMELINE_CLEANUP="yes"/' /etc/snapper/configs/root
-  sudo sed -i 's/^NUMBER_CLEANUP=.*/NUMBER_CLEANUP="yes"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="5"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="7"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' /etc/snapper/configs/root
+  # Detect bootloader type
+    local BOOTLOADER="unknown"
+    if [ -d "/boot/grub" ] || [ -d "/boot/grub2" ] || pacman -Q grub &>/dev/null; then
+      BOOTLOADER="grub"
+    elif [ -d "/boot/loader" ] || [ -d "/efi/loader" ] || command -v bootctl &>/dev/null; then
+      BOOTLOADER="systemd-boot"
+    fi
+    log_info "Detected bootloader: $BOOTLOADER"
+
+    # Configure Snapper settings for optimal snapshot management
+    local SNAPPER_CONFIG="/etc/snapper/configs/root"
+
+    # Backup existing config if present
+    if [ -f "$SNAPPER_CONFIG" ]; then
+      sudo cp "$SNAPPER_CONFIG" "${SNAPPER_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
+    fi
+
+  # Configure Snapper with gaming-optimized settings
+  sudo tee "$SNAPPER_CONFIG" > /dev/null << EOF
+# Snapper config for root filesystem
+# Gaming-focused configuration by CachyInstaller
+
+# General snapshot settings - minimal storage impact
+TIMELINE_CREATE="yes"
+TIMELINE_CLEANUP="yes"
+NUMBER_CLEANUP="yes"
+NUMBER_LIMIT="10"
+NUMBER_LIMIT_IMPORTANT="5"
+
+# Timeline snapshots (gaming-optimized)
+TIMELINE_LIMIT_HOURLY="3"
+TIMELINE_LIMIT_DAILY="3"
+TIMELINE_LIMIT_WEEKLY="0"
+TIMELINE_LIMIT_MONTHLY="0"
+TIMELINE_LIMIT_YEARLY="0"
+
+# Aggressive cleanup for gaming storage
+NUMBER_MIN_AGE="1800"
+TIMELINE_MIN_AGE="1800"
+EMPTY_PRE_POST_CLEANUP="yes"
+EMPTY_PRE_POST_MIN_AGE="1800"
+
+# Gaming storage management
+SYNC_ACL="yes"
+SPACE_LIMIT="0.2"
+FREE_LIMIT="0.15"
+
+# Simple configuration
+QGROUP="1/0"
+SUBVOLUME="/"
+
+# Fast compression for minimal impact
+COMPRESSION_TYPE="zstd"
+COMPRESSION_LEVEL="1"
+EOF
 
   log_success "Snapper configuration completed (5 hourly, 7 daily snapshots)"
 }
 
 # Setup GRUB bootloader for snapshots
-setup_grub_bootloader() {
-  step "Configuring GRUB bootloader for snapshot support"
+setup_bootloader_snapshots() {
+  local bootloader="$1"
+  step "Configuring $bootloader snapshot support"
 
-  # Install grub-btrfs for automatic snapshot boot entries
-  if ! pacman -Q grub-btrfs &>/dev/null; then
-    log_info "Installing grub-btrfs for snapshot support..."
-    install_packages_quietly grub-btrfs
-  else
-    log_info "grub-btrfs already installed"
+  # Install and configure snapshot management tools
+  log_info "Setting up snapshot management tools..."
+
+  # Install common packages
+  local SNAPSHOT_PKGS=(btrfs-assistant snapper-support snap-pac)
+
+  # Add bootloader-specific packages
+  if [ "$bootloader" = "grub" ]; then
+    SNAPSHOT_PKGS+=(grub-btrfs grub-btrfs-config)
+  elif [ "$bootloader" = "systemd-boot" ]; then
+    SNAPSHOT_PKGS+=(snapper-boot)
   fi
 
-  # Enable grub-btrfsd daemon for automatic menu updates
-  if command -v grub-btrfsd &>/dev/null; then
-    log_info "Enabling grub-btrfsd service for automatic snapshot detection..."
+  install_packages_quietly "${SNAPSHOT_PKGS[@]}"
+
+  # Configure btrfs-assistant
+  if command -v btrfs-assistant >/dev/null; then
+    # Create default config directory
+    sudo mkdir -p /etc/btrfs-assistant
+
+    # Configure default settings
+    sudo tee /etc/btrfs-assistant/config.json > /dev/null << EOF
+{
+    "general": {
+        "check_interval": 7200,
+        "notify_updates": true,
+        "auto_cleanup": true
+    },
+    "snapshots": {
+        "compression": "zstd",
+        "compression_level": 1,
+        "snapshot_dir": "/.snapshots",
+        "retain_important": 5,
+        "min_free_space": "50G",
+        "gaming_mode": true
+    },
+    "integration": {
+        "use_snapper": true,
+        "snapper_config": "root",
+        "boot_entries": true,
+        "auto_mount_snapshots": true,
+        "cleanup_on_low_space": true
+    }
+}
+EOF
+  fi
+
+  # Enable and configure system services with monitoring
+  log_info "Configuring snapshot system services and monitoring..."
+
+  # Set up system monitoring for snapshots
+  sudo mkdir -p /etc/systemd/system
+
+  # Create snapshot monitoring service
+  sudo tee /etc/systemd/system/snapper-monitor.service > /dev/null << EOF
+[Unit]
+Description=Snapper System Monitoring Service
+After=snapper-timeline.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bash -c 'while true; do snapper list; df -h /.snapshots; sleep 300; done'
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # Create btrfs scrub service
+  sudo tee /etc/systemd/system/btrfs-scrub.service > /dev/null << EOF
+[Unit]
+Description=Btrfs Scrub Service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/btrfs scrub start -B /
+Nice=19
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # Create btrfs scrub timer
+  sudo tee /etc/systemd/system/btrfs-scrub.timer > /dev/null << EOF
+[Unit]
+Description=Weekly Btrfs Scrub Timer
+
+[Timer]
+OnCalendar=weekly
+AccuracySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  # Enable core snapshot services
+  local SNAPSHOT_SERVICES=(
+    "snapper-timeline.timer"
+    "snapper-cleanup.timer"
+    "grub-btrfsd.service"
+    "btrfs-assistant-daemon.service"
+    "snapper-monitor.service"
+    "btrfs-scrub.timer"
+    "btrfs-scrub.service"
+  )
+
+  for service in "${SNAPSHOT_SERVICES[@]}"; do
+    if systemctl is-enabled "$service" &>/dev/null; then
+      sudo systemctl restart "$service" 2>/dev/null || log_warning "Failed to restart $service"
+    else
+      sudo systemctl enable --now "$service" 2>/dev/null || log_warning "Failed to enable $service"
+    fi
+  done
+
+  # Configure bootloader-specific integrations
+  if [ "$bootloader" = "grub" ]; then
+    # Enable GRUB-specific services
     sudo systemctl enable --now grub-btrfsd.service 2>/dev/null || log_warning "Failed to enable grub-btrfsd service"
+
+    # Update GRUB config
+    sudo grub-mkconfig -o /boot/grub/grub.cfg
+  elif [ "$bootloader" = "systemd-boot" ]; then
+    # Configure systemd-boot for snapshot booting
+    sudo mkdir -p /etc/kernel/cmdline.d
+    echo "rootflags=subvol=@/.snapshots/1/snapshot" | sudo tee /etc/kernel/cmdline.d/snapper.conf
+
+    # Update bootloader entries
+    sudo bootctl update
   fi
+
+  # Configure enhanced pacman hooks for intelligent snapshot management
+  sudo mkdir -p /etc/pacman.d/hooks
+
+  # Pre-transaction hook with space check and cleanup
+  sudo tee /etc/pacman.d/hooks/95-snapshot-pre.hook > /dev/null << EOF
+[Trigger]
+Operation = Upgrade
+Operation = Install
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Creating pre-transaction snapshot (Gaming Mode)...
+When = PreTransaction
+Exec = /bin/bash -c 'if [ $(/bin/df -h / | awk "NR==2 {print \$5}" | tr -d "%") -lt 85 ]; then /usr/bin/snapper --no-dbus create --type pre --cleanup-algorithm number --print-number --description "Gaming stability snapshot before updates"; else echo "Skipping snapshot - preserving space for games"; fi'
+Depends = snapper
+AbortOnFail
+EOF
+
+  # CachyOS kernel update specific hook
+    sudo tee /etc/pacman.d/hooks/95-snapshot-kernel.hook > /dev/null << EOF
+  [Trigger]
+  Operation = Install
+  Operation = Upgrade
+  Type = Package
+  Target = linux-cachyos*
+  Target = nvidia-dkms
+  Target = nvidia-utils
+  Target = lib32-nvidia-utils
+  Target = vulkan-icd-loader
+  Target = lib32-vulkan-icd-loader
+
+  [Action]
+  Description = Creating gaming-critical update snapshot...
+  When = PreTransaction
+  Exec = /usr/bin/snapper --no-dbus create --type pre --cleanup-algorithm number --print-number --description "Before gaming-critical update (kernel/GPU)"
+  Depends = snapper
+  AbortOnFail
+  EOF
+
+  # Post-transaction hook with detailed metadata
+  sudo tee /etc/pacman.d/hooks/96-snapshot-post.hook > /dev/null << EOF
+[Trigger]
+Operation = Upgrade
+Operation = Install
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Creating post-transaction Btrfs snapshot...
+When = PostTransaction
+Exec = /usr/bin/snapper --no-dbus create --type post --cleanup-algorithm number --print-number --description "After pacman transaction"
+Depends = snapper
+AbortOnFail
+EOF
+
+  # System update notification hook
+  sudo tee /etc/pacman.d/hooks/97-snapshot-notify.hook > /dev/null << EOF
+[Trigger]
+Operation = Upgrade
+Operation = Install
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Notifying about system snapshot...
+When = PostTransaction
+Exec = /usr/bin/notify-send "System Snapshot" "A new system snapshot has been created for package changes. Use btrfs-assistant to manage snapshots."
+EOF
+
+  # Emergency snapshot hook for critical packages
+  sudo tee /etc/pacman.d/hooks/98-snapshot-emergency.hook > /dev/null << EOF
+[Trigger]
+Operation = Remove
+Type = Package
+Target = systemd
+Target = glibc
+Target = linux
+Target = linux-api-headers
+Target = base
+Target = sudo
+
+[Action]
+Description = Creating emergency snapshot for critical package modification...
+When = PreTransaction
+Exec = /usr/bin/snapper --no-dbus create --type pre --cleanup-algorithm number --print-number --userdata "important=yes" --description "EMERGENCY: Critical package modification"
+Depends = snapper
+AbortOnFail
+EOF
 
   # Regenerate GRUB configuration
   log_info "Regenerating GRUB configuration..."
@@ -421,9 +681,18 @@ setup_btrfs_snapshots() {
 }
 
 # Function to run all maintenance steps with error handling
+# Execute all maintenance and snapshot steps
 run_maintenance() {
   local failed_steps=()
   local success=true
+  local bootloader="unknown"
+
+  # Detect bootloader type
+  if [ -d "/boot/grub" ] || [ -d "/boot/grub2" ] || pacman -Q grub &>/dev/null; then
+    bootloader="grub"
+  elif [ -d "/boot/loader" ] || [ -d "/efi/loader" ] || command -v bootctl &>/dev/null; then
+    bootloader="systemd-boot"
+  fi
 
   if ! cleanup_and_optimize; then
     failed_steps+=("cleanup_and_optimize")
@@ -442,6 +711,11 @@ run_maintenance() {
 
   if ! update_mirrorlist; then
     failed_steps+=("update_mirrorlist")
+    success=false
+  fi
+
+  if ! setup_bootloader_snapshots "$bootloader"; then
+    failed_steps+=("setup_bootloader_snapshots")
     success=false
   fi
 

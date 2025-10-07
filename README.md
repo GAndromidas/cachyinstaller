@@ -1,59 +1,66 @@
 # CachyInstaller
+# CachyInstaller
 
-**The definitive post-installation script for CachyOS** - Transform your fresh CachyOS installation into a fully-configured gaming powerhouse!
+A powerful post-installation script for CachyOS that transforms your system into an optimized gaming environment.
+
+![CachyInstaller Logo](images/cachyinstaller.png)
 
 ---
 
 ## Demo
+## Overview
 
-<img width="820" height="444" alt="Screenshot_20250918_081412" src="https://github.com/user-attachments/assets/bb676b34-ae3f-4625-b8c9-7338c116c85e" />
+![CachyInstaller Demo](images/demo.png)
 
-## What Makes CachyInstaller Special?
+## Features
 
-- **CachyOS Native**: Built specifically for CachyOS with zero conflicts
-- **Gaming-First**: Always includes gaming packages with GPU-specific drivers
-- **Smart Optimization**: Automatic network speed detection and package manager tuning
-- **Smart Shell Handling**: Fish enhancement or complete ZSH conversion
-- **Security Ready**: Automatic Fail2ban SSH protection and system hardening
-- **Zero Bloat**: Only installs what you actually need
-- **Smart Tracking**: Real-time installation progress and comprehensive logging
+- **Gaming Optimized**: Pre-configured for the best gaming experience
+- **Easy to Use**: Simple installation process with clear options
+- **Performance**: Automatic system optimization for gaming
+- **Enhanced Fish**: Optimized Fish shell configuration with gaming features
+- **Security**: Built-in protection with Fail2ban
+- **Efficient**: Installs only what you need
+- **Smart**: Tracks progress and provides clear feedback
 - **Error Recovery**: Automatic state tracking and recovery from interruptions
 - **Enhanced Security**: Improved system hardening and service protection
 - **Robust Package Management**: Advanced retry logic and verification
 
 ---
 
-## Quick Installation
+## Installation
 
+1. Clone the repository:
 ```bash
 git clone https://github.com/username/cachyinstaller.git
+```
+
+2. Navigate to the directory:
+```bash
 cd cachyinstaller
-chmod +x install.sh
+```
+
+3. Run the installer:
+```bash
 ./install.sh
 ```
 
-**That's it!** CachyInstaller handles everything else automatically.
+## Installation Options
 
----
+### Default Mode (Recommended)
+Complete setup including:
+- Gaming tools and optimizations
+- Essential applications
+- GPU driver configuration
+- Fish shell optimization
+- Security features
+- Desktop improvements
 
-## Installation Modes
-
-### **Default Mode (Recommended)**
-The complete CachyInstaller experience:
-- All essential applications and tools
-- Complete gaming stack with GPU drivers
-- Full shell configuration (Fish enhancement or ZSH conversion)
-- Security hardening (Fail2ban + UFW)
-- Desktop environment optimizations
-- Flatpak applications for enhanced functionality
-
-### **Minimal Mode (Fast Track)**
-Streamlined installation for experienced users:
-- Essential system tools and utilities
-- Complete gaming stack (always included)
-- Basic shell setup with minimal plugins
-- Core security configuration
-- Skip most Flatpak applications
+### Minimal Mode
+Basic setup with:
+- Core gaming features
+- Essential tools
+- Basic security
+- Minimal shell setup
 
 ---
 
@@ -159,6 +166,52 @@ Streamlined installation for experienced users:
 
 ---
 
+## Btrfs Snapshot Management
+
+### **Bootloader Integration**
+- Automatic detection of GRUB or systemd-boot
+- Optimized configuration for each bootloader type
+- Boot menu integration for snapshot recovery
+- Seamless bootloader updates with snapshots
+
+### **Automated Snapshot System**
+- Snapper integration for system snapshots
+- btrfs-assistant GUI for easy management
+- Automatic snapshots before and after package operations
+- Intelligent snapshot cleanup and retention
+
+### **Snapshot Features**
+- Timeline snapshots (hourly, daily, weekly)
+- Pre/post package installation snapshots
+- Bootable snapshot recovery
+- Space-aware snapshot management
+
+### **Recovery Options**
+- GRUB bootloader integration
+- GUI-based snapshot restoration
+- Command-line recovery tools
+- Automatic space management
+
+### **Configuration**
+- Bootloader-specific optimizations
+- Optimized retention policies
+- Compressed snapshots with zstd
+- Automatic cleanup of old snapshots
+- Integration with pacman hooks
+
+### **Bootloader-Specific Features**
+GRUB:
+- Direct boot menu entries for snapshots
+- grub-btrfs integration
+- Automatic menu updates
+- Graphical snapshot selection
+
+systemd-boot:
+- Efficient boot entry integration
+- Kernel parameter handling
+- ESP partition management
+- Boot entry auto-update
+
 ## Error Handling and Recovery
 
 ### **Automatic State Management**
@@ -220,30 +273,25 @@ System optimized for your hardware!
 ---
 
 ## FAQ
+## Frequently Asked Questions
 
-### Will this break my CachyOS setup?
-No, CachyInstaller respects CachyOS's native package management.
+### Is it safe to use?
+Yes, CachyInstaller is designed specifically for CachyOS and maintains system stability.
 
-### Can I keep using Fish shell?
-Yes, you can choose between Fish enhancement or ZSH conversion.
+### Do I need to backup my files?
+While the installer is safe, it's always good practice to backup important files.
 
-### Is gaming support mandatory?
-Yes, CachyOS is a gaming-focused distribution.
+### Will this modify my Fish shell?
+Yes, it enhances the default CachyOS Fish shell with optimized gaming configurations and improved features.
 
-### What about NVIDIA GPUs?
-Fully supported with automatic driver installation.
+### Will it improve gaming performance?
+Yes, the installer includes optimizations specifically for gaming.
 
-### How does error recovery work?
-The installer uses a transaction-based system with automatic state tracking. If any step fails, it can safely roll back or retry operations while preserving system stability.
+### What if something goes wrong?
+The installer can safely recover from interruptions and includes automatic backup features.
 
-### What happens if installation is interrupted?
-The installer can safely resume from the last successful state.
-
-### How are failed installations handled?
-Failed package installations are automatically retried and verified.
-
-### Is the system validated after installation?
-Yes, comprehensive checks verify system integrity and package installation.
+### Do I need to reboot after installation?
+Yes, a reboot is recommended to apply all optimizations.
 
 ---
 

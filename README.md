@@ -10,7 +10,7 @@ A powerful post-installation script for CachyOS that transforms your system into
 ## Demo
 ## Overview
 
-![CachyInstaller Demo](images/demo.png)
+<img width="820" height="444" alt="Screenshot_20250918_081412" src="https://github.com/user-attachments/assets/bb676b34-ae3f-4625-b8c9-7338c116c85e" />
 
 ## Features
 

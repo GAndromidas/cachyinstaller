@@ -123,16 +123,16 @@ export INSTALL_LOG
 
 # Define cachy_ascii function
 show_cachy_banner() {
-    echo -e "${BOLD}${WHITE}╭───────────────────────────────────────────────────╮${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}                                               ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}   ____            _            ___           _        _ _           ${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __ ${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN} | |   / _\` |/ __| '_ \| | | | | || '_ \/ __| __/ _\` | | |/ _ \ '__| ${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN} | |__| (_| | (__| | | | |_| | | || | | \__ \ || (_| | | |  __/ |   ${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}  \____\__,_|\___|_| |_|\__, |___||_| |_|___/\__\__,_|_|_|\___|_|   ${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}                        |___/                                          ${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}                                               ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}╰───────────────────────────────────────────────────╯${RESET}"
+    echo -e "${BOLD}${WHITE}╭──────────────────────────────────────────╮${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}                                          ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}   ____            _            ___           _        _ _${RESET}           ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET} ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN} | |   / _\` |/ __| '_ \| | | | | || '_ \/ __| __/ _\` | | |/ _ \ '__|${RESET} ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN} | |__| (_| | (__| | | | |_| | | || | | \__ \ || (_| | | |  __/ |${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}  \____\__,_|\___|_| |_|\__, |___||_| |_|___/\__\__,_|_|_|\___|_|${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}                        |___/${RESET}                                ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}                                          ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}╰──────────────────────────────────────────╯${RESET}"
     echo ""
 }
 

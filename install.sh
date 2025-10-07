@@ -1,8 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -uo pipefail
 
-# Installation log file
+# Configuration files
 INSTALL_LOG="$HOME/.cachyinstaller.log"
+STATE_FILE="$HOME/.cachyinstaller.state"
+CONFIG_FILE="$HOME/.cachyinstaller.conf"
+TOTAL_STEPS=7  # Total installation steps
+
+# Detect if we're running in Fish and re-execute in bash if needed
+if [ -n "$FISH_VERSION" ]; then
+    exec bash "$0" "$@"
+fi
 
 # Function to show help
 show_help() {
@@ -115,9 +123,9 @@ export INSTALL_LOG
 
 arch_ascii
 
-# Silently install gum for beautiful UI before menu
+# Silently install gum and figlet for beautiful UI before menu
 if ! command -v gum >/dev/null 2>&1; then
-  sudo pacman -S --noconfirm gum >/dev/null 2>&1 || true
+  sudo pacman -S --noconfirm gum figlet >/dev/null 2>&1 || true
 fi
 
 # Check system requirements for new users
@@ -191,17 +199,51 @@ else
 fi
 
 # State tracking for error recovery
-STATE_FILE="$HOME/.cachyinstaller.state"
-mkdir -p "$(dirname "$STATE_FILE")"
+mkdir -p "$(dirname "$STATE_FILE")" "$(dirname "$CONFIG_FILE")"
 
-# Function to mark step as completed
+# Save initial configuration
+save_config() {
+  {
+    echo "INSTALL_MODE=$INSTALL_MODE"
+    echo "VERBOSE=$VERBOSE"
+    echo "START_TIME=$START_TIME"
+    echo "CURRENT_SHELL=$SHELL"
+  } > "$CONFIG_FILE"
+}
+
+# Load saved configuration if exists
+load_config() {
+  if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+    return 0
+  fi
+  return 1
+}
+
+# Function to mark step as completed with timestamp
 mark_step_complete() {
-  echo "$1" >> "$STATE_FILE"
+  local step_name="$1"
+  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  echo "${step_name}|${timestamp}" >> "$STATE_FILE"
+  sync "$STATE_FILE"  # Ensure state is written to disk
 }
 
 # Function to check if step was completed
 is_step_complete() {
-  [ -f "$STATE_FILE" ] && grep -q "^$1$" "$STATE_FILE"
+  local step_name="$1"
+  if [ -f "$STATE_FILE" ]; then
+    grep -q "^${step_name}|" "$STATE_FILE"
+    return $?
+  fi
+  return 1
+}
+
+# Function to get step completion time
+get_step_completion_time() {
+  local step_name="$1"
+  if [ -f "$STATE_FILE" ]; then
+    grep "^${step_name}|" "$STATE_FILE" | cut -d'|' -f2
+  fi
 }
 
 # Function to save log on exit
@@ -222,12 +264,18 @@ print_header "Starting CachyOS Enhancement Installation" \
 # Step 1: System Preparation
 if ! is_step_complete "system_preparation"; then
   print_step_header 1 "$TOTAL_STEPS" "System Preparation"
-  ui_info "Updating package lists and installing system utilities..."
-  step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh" || log_error "System preparation failed"
-  mark_step_complete "system_preparation"
-  ui_success "Step 1 completed"
+  ui_info "Optimizing system and preparing for installation..."
+  if step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh"; then
+    mark_step_complete "system_preparation"
+    save_config
+    ui_success "Step 1 completed successfully"
+  else
+    log_error "System preparation failed"
+    exit 1
+  fi
 else
-  ui_info "Step 1 (System Preparation) already completed - skipping"
+  completion_time=$(get_step_completion_time "system_preparation")
+  ui_info "Step 1 (System Preparation) completed on $completion_time - skipping"
 fi
 
 # Step 2: Fish Shell Enhancement
@@ -349,6 +397,8 @@ log_performance "Total installation time"
 if [ ${#ERRORS[@]} -eq 0 ]; then
   ui_success "All steps completed successfully"
   ui_info "Installation log saved to: $INSTALL_LOG"
+  # Cleanup state files on successful completion
+  rm -f "$STATE_FILE" "$CONFIG_FILE"
 else
   ui_warn "Some errors occurred during installation:"
   if command -v gum >/dev/null 2>&1; then
@@ -366,4 +416,46 @@ else
   ui_info "You can run the installer again to resume from the last successful step."
 fi
 
-prompt_reboot
+# Cleanup non-essential UI tools and show final summary
+if command -v gum >/dev/null 2>&1; then
+  show_installation_summary
+  ui_info "Cleaning up temporary UI tools..."
+  sudo pacman -Rns --noconfirm gum figlet >/dev/null 2>&1 || true
+fi
+
+# Save current shell for restoration after reboot
+CURRENT_SHELL=$SHELL
+export CURRENT_SHELL
+
+# Handle reboot
+if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
+  echo -e "\n${RED}A reboot is REQUIRED to complete shell changes!${RESET}"
+  echo -e "${YELLOW}Your system will reboot in 10 seconds...${RESET}"
+  echo -e "${YELLOW}Press Ctrl+C to cancel reboot${RESET}"
+  sleep 10
+  sudo reboot
+else
+  # Ensure we handle both Fish and Bash shell prompts
+  if [ -n "$FISH_VERSION" ]; then
+    read -p "Would you like to reboot now? [Y/n]: " response
+    set response (string lower $response)
+    if [ -z "$response" ] || string match -q 'y*' "$response"; then
+      echo -e "\n${GREEN}Rebooting system...${RESET}"
+      sleep 2
+      sudo reboot
+    fi
+  else
+    read -p "Would you like to reboot now? [Y/n]: " response
+    response=${response,,}
+    if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
+      echo -e "\n${GREEN}Rebooting system...${RESET}"
+      sleep 2
+      sudo reboot
+    fi
+  fi
+fi
+
+# Return to original shell if not rebooting
+if [ -n "$FISH_VERSION" ] && [ "$SHELL" = "$(command -v fish)" ]; then
+    exec fish
+fi

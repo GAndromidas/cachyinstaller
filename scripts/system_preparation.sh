@@ -1,88 +1,266 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -uo pipefail
 
-# CachyOS System Preparation - Only what CachyOS doesn't manage
+# Get script directory and source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-check_prerequisites() {
-  step "Checking system prerequisites"
-  check_root_user
-  if ! command -v pacman >/dev/null; then
-    log_error "This script is intended for CachyOS systems with pacman"
-    return 1
-  fi
-  log_success "Prerequisites OK"
+# Constants
+BACKUP_DIR="$HOME/.cache/cachyinstaller/backups"
+PERF_LOG="$HOME/.cache/cachyinstaller/performance.log"
+NETWORK_LOG="$HOME/.cache/cachyinstaller/network.log"
+
+# Constants for network speed thresholds (in Mbps)
+SPEED_VERY_SLOW=5
+SPEED_SLOW=10
+SPEED_MEDIUM=50
+SPEED_FAST=100
+
+# Initialize directories
+mkdir -p "$BACKUP_DIR"
+mkdir -p "$(dirname "$PERF_LOG")"
+mkdir -p "$(dirname "$NETWORK_LOG")"
+
+# Function to measure download speed
+measure_download_speed() {
+    step "Measuring network speed"
+    local speed=0
+    local attempts=0
+    local max_attempts=3
+    local test_file="https://archlinux.org/packages/core/x86_64/linux/download"
+    local fallback_file="https://github.com/archlinux/archinstall/archive/refs/heads/master.zip"
+
+    # Try multiple speed test attempts
+    while [ $attempts -lt $max_attempts ] && [ $speed -eq 0 ]; do
+        attempts=$((attempts + 1))
+        log_info "Testing network speed (attempt $attempts/$max_attempts)..."
+
+        # Try curl first
+        if command -v curl >/dev/null 2>&1; then
+            speed=$(curl -L --max-time 10 --output /dev/null --silent --write-out "%{speed_download}" "$test_file" 2>/dev/null)
+            speed=$((${speed%.*} / 131072)) # Convert to Mbps
+        fi
+
+        # If curl failed or speed is 0, try wget
+        if [ $speed -eq 0 ] && command -v wget >/dev/null 2>&1; then
+            local start_time=$(date +%s)
+            if wget -O /dev/null "$fallback_file" 2>&1 | grep -q "MB/s"; then
+                local end_time=$(date +%s)
+                local duration=$((end_time - start_time))
+                speed=$((5 / duration * 8)) # Assuming ~5MB file size
+            fi
+        fi
+
+        # If still no valid speed, try ping
+        if [ $speed -eq 0 ]; then
+            local ping_time=$(ping -c 1 archlinux.org 2>/dev/null | grep "time=" | cut -d "=" -f 4 | cut -d " " -f 1)
+            if [ -n "$ping_time" ]; then
+                if [ "${ping_time%.*}" -lt 50 ]; then
+                    speed=50
+                elif [ "${ping_time%.*}" -lt 100 ]; then
+                    speed=20
+                else
+                    speed=5
+                fi
+            fi
+        fi
+
+        [ $speed -gt 0 ] && break
+        sleep 1
+    done
+
+    # Use conservative default if all attempts failed
+    if [ $speed -eq 0 ]; then
+        speed=10
+        log_warning "Could not measure network speed, using conservative default of ${speed}Mbps"
+    else
+        log_success "Measured network speed: ${speed}Mbps"
+    fi
+
+    echo "$speed"
 }
 
-update_system() {
-  step "Updating system packages"
-  log_info "Updating system packages..."
+# Function to update mirrorlist using rate-mirrors
+update_mirrors() {
+    step "Updating mirrorlist with rate-mirrors"
 
-  if sudo pacman -Syu --noconfirm; then
-    log_success "System packages updated"
-  else
-    log_warning "Some packages may not have updated - continuing installation"
-  fi
+    log_info "Running rate-mirrors to find fastest mirrors..."
+    if sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch; then
+        sudo pacman -Syy
+        log_success "Mirrorlist updated successfully"
+    else
+        log_error "Failed to update mirrorlist with rate-mirrors"
+        return 1
+    fi
 }
 
-# Helper packages are now installed earlier in install.sh after menu selection
+# Function to optimize pacman configuration
+optimize_pacman() {
+    local speed=$1
+    local pacman_conf="/etc/pacman.conf"
+    local parallel_downloads=5
 
-install_shell_packages() {
-  step "Installing shell packages"
+    step "Optimizing pacman configuration"
 
-  if [[ "${CACHYOS_SHELL_CHOICE:-}" == "fish" ]]; then
-    log_info "Keeping Fish shell - no additional shell packages needed"
-    log_success "Fish shell configuration preserved"
-    return 0
-  fi
+    # Determine optimal parallel downloads based on speed
+    if [ $speed -ge $SPEED_FAST ]; then
+        parallel_downloads=15
+    elif [ $speed -ge $SPEED_MEDIUM ]; then
+        parallel_downloads=10
+    elif [ $speed -ge $SPEED_SLOW ]; then
+        parallel_downloads=5
+    else
+        parallel_downloads=3
+    fi
 
-  # Install ZSH and related packages for shell conversion
-  local shell_packages=(
-    "zsh"
-    "zsh-autosuggestions"
-    "zsh-syntax-highlighting"
-    "starship"
-  )
+    # Backup original pacman.conf
+    if [ -f "$pacman_conf" ]; then
+        sudo cp "$pacman_conf" "${BACKUP_DIR}/pacman.conf.$(date +%Y%m%d_%H%M%S).bak"
+    fi
 
-  log_info "Installing ZSH shell packages for Fish conversion..."
-  install_packages_quietly "${shell_packages[@]}"
+    # Update pacman configuration
+    log_info "Configuring pacman with parallel downloads: $parallel_downloads"
+
+    # Enable parallel downloads
+    sudo sed -i "s/^#ParallelDownloads.*/ParallelDownloads = $parallel_downloads/" "$pacman_conf"
+    if ! grep -q "^ParallelDownloads" "$pacman_conf"; then
+        echo "ParallelDownloads = $parallel_downloads" | sudo tee -a "$pacman_conf" >/dev/null
+    fi
+
+    # Enable other optimizations
+    for option in "Color" "CheckSpace" "VerbosePkgLists" "ILoveCandy"; do
+        sudo sed -i "s/^#$option$/$option/" "$pacman_conf"
+        if ! grep -q "^$option" "$pacman_conf"; then
+            echo "$option" | sudo tee -a "$pacman_conf" >/dev/null
+        fi
+    done
+
+    log_success "Pacman configuration optimized"
 }
 
-set_sudo_pwfeedback() {
-  step "Enabling sudo password feedback (asterisks)"
+# Function to optimize paru configuration
+optimize_paru() {
+    local speed=$1
+    local paru_conf="/etc/paru.conf"
+    local max_parallel=5
 
-  if ! sudo grep -q '^Defaults.*pwfeedback' /etc/sudoers /etc/sudoers.d/* 2>/dev/null; then
-    log_info "Enabling sudo password feedback (asterisks)"
-    echo 'Defaults env_reset,pwfeedback' | sudo EDITOR='tee -a' visudo &>/dev/null
-    log_success "Sudo password feedback enabled"
-  else
-    log_info "Sudo password feedback already enabled"
-  fi
+    if ! command -v paru >/dev/null 2>&1; then
+        return 0
+    fi
+
+    step "Optimizing paru configuration"
+
+    # Set parallel downloads based on speed
+    if [ $speed -ge $SPEED_FAST ]; then
+        max_parallel=10
+    elif [ $speed -ge $SPEED_MEDIUM ]; then
+        max_parallel=8
+    elif [ $speed -ge $SPEED_SLOW ]; then
+        max_parallel=5
+    else
+        max_parallel=3
+    fi
+
+    # Create or update paru configuration
+    if [ ! -f "$paru_conf" ]; then
+        sudo touch "$paru_conf"
+    else
+        sudo cp "$paru_conf" "${BACKUP_DIR}/paru.conf.$(date +%Y%m%d_%H%M%S).bak"
+    fi
+
+    # Update paru settings
+    if grep -q "^MaxParallel" "$paru_conf"; then
+        sudo sed -i "s/^MaxParallel.*/MaxParallel = $max_parallel/" "$paru_conf"
+    else
+        echo "MaxParallel = $max_parallel" | sudo tee -a "$paru_conf" >/dev/null
+    fi
+
+    log_success "Paru configuration optimized"
 }
 
-generate_locales() {
-  step "Generating locales"
-  log_info "Generating system locales..."
-  if sudo sed -i 's/#el_GR.UTF-8 UTF-8/el_GR.UTF-8 UTF-8/' /etc/locale.gen && sudo locale-gen &>/dev/null; then
-    log_success "Locales generated successfully"
-  else
-    log_warning "Locale generation had issues but continuing"
-  fi
+# Function to setup system enhancements
+setup_system_enhancements() {
+    step "Setting up system enhancements"
+
+    # Detect CachyOS features
+    if pacman -Q linux-cachyos >/dev/null 2>&1; then
+        export HAS_CACHYOS_KERNEL=true
+        log_info "CachyOS kernel detected"
+    fi
+
+    # Check for gaming optimizations
+    if pacman -Q gamemode >/dev/null 2>&1; then
+        export HAS_GAMING_MODE=true
+        log_info "GameMode detected"
+    fi
+
+    # Detect GPU vendor
+    if lspci | grep -i "VGA" | grep -i "NVIDIA" >/dev/null; then
+        export GPU_VENDOR="nvidia"
+        log_info "NVIDIA GPU detected"
+    elif lspci | grep -i "VGA" | grep -i "AMD" >/dev/null; then
+        export GPU_VENDOR="amd"
+        log_info "AMD GPU detected"
+    elif lspci | grep -i "VGA" | grep -i "Intel" >/dev/null; then
+        export GPU_VENDOR="intel"
+        log_info "Intel GPU detected"
+    fi
+
+    # Detect laptop
+    if [ -d "/sys/class/power_supply" ] && ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
+        export IS_LAPTOP=true
+        log_info "Laptop system detected"
+    fi
+
+    # Setup desktop environment specific configurations
+    case "$XDG_CURRENT_DESKTOP" in
+        "KDE")
+            export DE_CONFIG_DIR="$HOME/.config/kde"
+            export DE_SHORTCUT_FILE="$HOME/.config/kglobalshortcutsrc"
+            if [ -f "$DE_SHORTCUT_FILE" ]; then
+                cp "$DE_SHORTCUT_FILE" "$BACKUP_DIR/kglobalshortcutsrc.$(date +%Y%m%d_%H%M%S).bak"
+            fi
+            ;;
+        "GNOME")
+            export DE_CONFIG_DIR="$HOME/.config/gnome-session"
+            dconf dump / > "$BACKUP_DIR/gnome-settings.$(date +%Y%m%d_%H%M%S).bak"
+            ;;
+        *)
+            export DE_CONFIG_DIR="$HOME/.config"
+            ;;
+    esac
+
+    log_success "System enhancements configured"
 }
 
-# Main execution
+# Main preparation function
 main() {
-  log_info "Starting CachyOS system preparation..."
+    local start_time=$(date +%s)
 
-  check_prerequisites || { log_error "Prerequisites check failed"; return 1; }
-  update_system || { log_error "System update failed"; return 1; }
-  install_shell_packages || { log_error "Shell packages installation failed"; return 1; }
-  set_sudo_pwfeedback || { log_warning "Sudo feedback setup had issues"; }
-  generate_locales || { log_warning "Locale generation had issues"; }
+    # Display header
+    figlet_banner "System Preparation" || echo "=== System Preparation ==="
 
-  log_success "CachyOS system preparation completed successfully"
+    # Check network speed and optimize package managers
+    local network_speed=$(measure_download_speed)
+
+    # Update mirrors using rate-mirrors
+    update_mirrors
+
+    # Optimize package managers based on network speed
+    optimize_pacman "$network_speed"
+    optimize_paru "$network_speed"
+
+    # Setup system enhancements
+    setup_system_enhancements
+
+    # Calculate and log execution time
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    log_success "System preparation completed in ${duration} seconds"
+
+    return 0
 }
 
-# Run the main function
+# Execute main function
 main

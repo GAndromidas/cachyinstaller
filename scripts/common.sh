@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Color variables for output formatting
 RED='\033[0;31m'
@@ -16,6 +16,8 @@ ERRORS=()                # Collects error messages for summary
 CURRENT_STEP=1           # Tracks current step for progress display
 INSTALLED_PACKAGES=()    # Tracks installed packages
 REMOVED_PACKAGES=()      # Tracks removed packages
+LAST_STATE=""           # Tracks last successful state
+ERROR_COUNT=0           # Counts errors for adaptive retries
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Script directory
 CONFIGS_DIR="$SCRIPT_DIR/configs"                           # Config files directory
@@ -38,7 +40,12 @@ HELPER_UTILS=()
 
 # Function to populate HELPER_UTILS based on current shell choice
 populate_helper_utils() {
-  HELPER_UTILS=($(get_helper_utils))
+  # Handle Fish shell array syntax differently
+  if [[ -n "$FISH_VERSION" ]]; then
+    HELPER_UTILS=($(get_helper_utils | tr ' ' '\n'))
+  else
+    HELPER_UTILS=($(get_helper_utils))
+  fi
 }
 
 # Ensure critical variables are defined
@@ -163,10 +170,14 @@ show_traditional_menu() {
 # Function to get current shell and detect if it's fish
 get_current_shell() {
   local current_shell=""
-  # Check user's shell from /etc/passwd
-  current_shell=$(getent passwd "$USER" | cut -d: -f7)
-  # Get just the shell name
-  current_shell=$(basename "$current_shell")
+  # First try $SHELL environment variable
+  if [[ -n "$SHELL" ]]; then
+    current_shell=$(basename "$SHELL")
+  else
+    # Fallback to /etc/passwd
+    current_shell=$(getent passwd "$USER" | cut -d: -f7)
+    current_shell=$(basename "$current_shell")
+  fi
   echo "$current_shell"
 }
 
@@ -289,30 +300,61 @@ show_cachyos_info() {
   echo -e "${CYAN}══════════════════════════════════════${RESET}\n"
 }
 
-# Log functions
+# Enhanced logging functions with timestamps and line numbers
 log_info() {
-  echo -e "${CYAN}[INFO]${RESET} $1" | tee -a "$HOME/cachyinstaller.log"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
+    local line_number=$(echo "$caller_info" | cut -d: -f2)
+    echo -e "${CYAN}[INFO]${RESET} ${timestamp} [L${line_number}] $1" | tee -a "$INSTALL_LOG"
 }
 
 log_error() {
-  local error_msg="$1"
-  ERRORS+=("$error_msg")
-  echo -e "${RED}[ERROR]${RESET} $error_msg" | tee -a "$HOME/cachyinstaller.log"
+    local error_msg="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
+    local line_number=$(echo "$caller_info" | cut -d: -f2)
+    ERRORS+=("${timestamp}: ${error_msg}")
+    echo -e "${RED}[ERROR]${RESET} ${timestamp} [L${line_number}] ${error_msg}" | tee -a "$INSTALL_LOG"
+    # Log stack trace for debugging
+    local frame=0
+    while caller $frame; do
+        ((frame++))
+    done 2>/dev/null | awk '{printf "  at %s:%d\n", $2, $1}' | tee -a "$INSTALL_LOG"
 }
 
 log_warning() {
-  echo -e "${YELLOW}[WARNING]${RESET} $1" | tee -a "$HOME/cachyinstaller.log"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
+    local line_number=$(echo "$caller_info" | cut -d: -f2)
+    echo -e "${YELLOW}[WARNING]${RESET} ${timestamp} [L${line_number}] $1" | tee -a "$INSTALL_LOG"
 }
 
 log_success() {
-  echo -e "${GREEN}[SUCCESS]${RESET} $1" | tee -a "$HOME/cachyinstaller.log"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local caller_info=$(caller 0 2>/dev/null || echo "unknown:0")
+    local line_number=$(echo "$caller_info" | cut -d: -f2)
+    echo -e "${GREEN}[SUCCESS]${RESET} ${timestamp} [L${line_number}] $1" | tee -a "$INSTALL_LOG"
 }
 
-# Step function with progress tracking
+# Step function with progress tracking and error recovery
 step() {
   local description="$1"
+  local state_data="$2"
+
   log_info "Starting step $CURRENT_STEP: $description"
+
+  # Create checkpoint before step
+  if [ -n "$state_data" ]; then
+    echo "${description}|$(date '+%Y-%m-%d %H:%M:%S')|${state_data}" > "${STATE_FILE}.tmp"
+    mv "${STATE_FILE}.tmp" "${STATE_FILE}"
+  fi
+
+  # Track step for error recovery
+  LAST_STATE="$description"
   CURRENT_STEP=$((CURRENT_STEP + 1))
+
+  # Reset error count for new step
+  ERROR_COUNT=0
 }
 
 # System checks
@@ -335,65 +377,183 @@ aur_package_installed() {
 }
 
 install_package() {
-  local package="$1"
-  if ! package_installed "$package"; then
-    log_info "Installing $package..."
-    if sudo pacman -S --noconfirm "$package"; then
-      INSTALLED_PACKAGES+=("$package")
-      log_success "Successfully installed $package"
+    local package="$1"
+    local retries=3
+    local retry_delay=5
+    local timeout=300  # 5 minutes timeout
+
+    if ! package_installed "$package"; then
+        log_info "Installing $package..."
+
+        # Update package database first
+        if ! sudo pacman -Sy; then
+            log_error "Failed to update package database"
+            return 1
+        fi
+
+        for ((i=1; i<=retries; i++)); do
+            # Try installation with timeout
+            if timeout $timeout sudo pacman -S --noconfirm --needed "$package"; then
+                # Verify installation
+                if package_installed "$package"; then
+                    INSTALLED_PACKAGES+=("$package")
+                    log_success "Successfully installed and verified $package"
+                    return 0
+                else
+                    log_error "Package $package appears to have failed verification after installation"
+                    continue
+                fi
+            else
+                local exit_code=$?
+                if [ $exit_code -eq 124 ]; then
+                    log_error "Installation of $package timed out after ${timeout}s"
+                fi
+
+                if [ $i -lt $retries ]; then
+                    log_warning "Failed to install $package (attempt $i/$retries). Retrying in ${retry_delay}s..."
+                    sleep $retry_delay
+                    # Clear package manager locks if they exist
+                    sudo rm -f /var/lib/pacman/db.lck
+                else
+                    log_error "Failed to install $package after $retries attempts"
+                    return 1
+                fi
+            fi
+        done
     else
-      log_error "Failed to install $package"
-      return 1
+        log_info "Package $package already installed, skipping"
+        return 0
     fi
-  else
-    log_info "Package $package already installed, skipping"
-  fi
 }
 
 install_aur_package() {
-  local package="$1"
-  if ! aur_package_installed "$package"; then
-    log_info "Installing AUR package $package..."
-    if paru -S --noconfirm "$package"; then
-      INSTALLED_PACKAGES+=("$package")
-      log_success "Successfully installed AUR package $package"
-    else
-      log_error "Failed to install AUR package $package"
-      return 1
+    local package="$1"
+    local retries=3
+    local retry_delay=5
+    local timeout=600  # 10 minutes timeout for AUR builds
+
+    if ! command -v paru >/dev/null; then
+        log_error "paru is not installed. Cannot install AUR packages."
+        return 1
     fi
-  else
-    log_info "AUR package $package already installed, skipping"
-  fi
+
+    if ! aur_package_installed "$package"; then
+        log_info "Installing AUR package $package..."
+
+        # Update AUR database first
+        if ! paru -Sy; then
+            log_error "Failed to update AUR database"
+            return 1
+        }
+
+        for ((i=1; i<=retries; i++)); do
+            # Try installation with timeout
+            if timeout $timeout paru -S --noconfirm --needed "$package"; then
+                # Verify installation
+                if aur_package_installed "$package"; then
+                    INSTALLED_PACKAGES+=("$package")
+                    log_success "Successfully installed and verified AUR package $package"
+                    return 0
+                else
+                    log_error "AUR package $package appears to have failed verification after installation"
+                    continue
+                fi
+            else
+                local exit_code=$?
+                if [ $exit_code -eq 124 ]; then
+                    log_error "Installation of AUR package $package timed out after ${timeout}s"
+                fi
+
+                if [ $i -lt $retries ]; then
+                    log_warning "Failed to install AUR package $package (attempt $i/$retries). Retrying in ${retry_delay}s..."
+                    sleep $retry_delay
+                    # Clean build directory before retry
+                    rm -rf "$HOME/.cache/paru/$package"
+                else
+                    log_error "Failed to install AUR package $package after $retries attempts"
+                    return 1
+                fi
+            fi
+        done
+    else
+        log_info "AUR package $package already installed, skipping"
+        return 0
+    fi
 }
 
 # Batch package installation helper
 install_packages_quietly() {
-  local pkgs=("$@")
-  local to_install=()
+    local pkgs=("$@")
+    local to_install=()
+    local failed_pkgs=()
+    local timeout=1800  # 30 minutes total timeout
 
-  # Filter out already installed packages
-  for pkg in "${pkgs[@]}"; do
-    if ! pacman -Q "$pkg" &>/dev/null; then
-      to_install+=("$pkg")
+    # Ensure we're not in Fish shell for package operations
+    if [[ -n "$FISH_VERSION" ]]; then
+        exec bash -c "source $SCRIPT_DIR/common.sh && install_packages_quietly $*"
+        return $?
     fi
-  done
 
-  if [[ ${#to_install[@]} -eq 0 ]]; then
-    log_info "All packages already installed"
-    return 0
-  fi
+    # Update package database first
+    if ! sudo pacman -Sy; then
+        log_error "Failed to update package database"
+        return 1
+    fi
 
-  log_info "Installing ${#to_install[@]} packages: ${to_install[*]}"
-
-  if sudo pacman -S --noconfirm --needed "${to_install[@]}"; then
-    for pkg in "${to_install[@]}"; do
-      INSTALLED_PACKAGES+=("$pkg")
+    # Filter out already installed packages
+    for pkg in "${pkgs[@]}"; do
+        if ! pacman -Q "$pkg" &>/dev/null; then
+            to_install+=("$pkg")
+        fi
     done
-    log_success "Successfully installed packages"
-  else
-    log_error "Some packages failed to install"
-    return 1
-  fi
+
+    if [[ ${#to_install[@]} -eq 0 ]]; then
+        log_info "All packages already installed"
+        return 0
+    fi
+
+    log_info "Installing ${#to_install[@]} packages: ${to_install[*]}"
+
+    # Try installation with timeout
+    if timeout $timeout sudo pacman -S --noconfirm --needed "${to_install[@]}"; then
+        # Verify all packages were installed correctly
+        for pkg in "${to_install[@]}"; do
+            if pacman -Q "$pkg" &>/dev/null; then
+                INSTALLED_PACKAGES+=("$pkg")
+                log_success "Successfully installed and verified: $pkg"
+            else
+                failed_pkgs+=("$pkg")
+                log_error "Package $pkg failed verification after installation"
+            fi
+        done
+    else
+        local exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+            log_error "Batch package installation timed out after ${timeout}s"
+        fi
+        log_error "Batch package installation failed"
+        failed_pkgs=("${to_install[@]}")
+    fi
+
+    # Try installing failed packages individually
+    if [[ ${#failed_pkgs[@]} -gt 0 ]]; then
+        log_warning "Retrying failed packages individually: ${failed_pkgs[*]}"
+        for pkg in "${failed_pkgs[@]}"; do
+            if install_package "$pkg"; then
+                # Remove from failed packages if successful
+                failed_pkgs=("${failed_pkgs[@]/$pkg}")
+            fi
+        done
+    fi
+
+    # Final status
+    if [[ ${#failed_pkgs[@]} -gt 0 ]]; then
+        log_error "Failed to install packages: ${failed_pkgs[*]}"
+        return 1
+    fi
+
+    log_success "All packages installed successfully"
+    return 0
 }
 
 # Utility functions
@@ -412,21 +572,64 @@ get_desktop_environment() {
 }
 
 # Installation summary
+# Function to prompt for reboot in a Fish-compatible way with package verification
+prompt_reboot() {
+    # Verify critical packages before rebooting
+    local critical_pkgs=("linux" "systemd" "bash")
+    local missing_pkgs=()
+
+    for pkg in "${critical_pkgs[@]}"; do
+        if ! pacman -Q "$pkg" &>/dev/null; then
+            missing_pkgs+=("$pkg")
+        fi
+    done
+
+    if [[ ${#missing_pkgs[@]} -gt 0 ]]; then
+        log_error "Critical packages missing: ${missing_pkgs[*]}"
+        log_error "System may be in an unstable state. Manual intervention required."
+        return 1
+    fi
+  echo -e "\n${CYAN}═══ System Ready for Reboot ═══${RESET}"
+  echo -e "${GREEN}All changes have been applied successfully.${RESET}"
+  echo -e "${YELLOW}A reboot is recommended to ensure all changes take effect.${RESET}\n"
+
+  if command -v gum >/dev/null 2>&1; then
+    if gum confirm --default=true "Would you like to reboot now?"; then
+      echo -e "\n${GREEN}Rebooting system...${RESET}"
+      sleep 2
+      sudo reboot
+    fi
+  else
+    read -p "Would you like to reboot now? [Y/n]: " response
+    response=${response,,}
+    if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
+      echo -e "\n${GREEN}Rebooting system...${RESET}"
+      sleep 2
+      sudo reboot
+    fi
+  fi
+}
+
 show_installation_summary() {
+  # Save current shell state
+  local original_shell=$SHELL
+  local is_fish_active=$FISH_VERSION
+
   local end_time=$(date +%s)
   local duration=$((end_time - START_TIME))
   local hours=$((duration / 3600))
   local minutes=$(((duration % 3600) / 60))
   local seconds=$((duration % 60))
 
+  clear
   echo -e "\n${GREEN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${GREEN}║                    INSTALLATION COMPLETE                     ║${RESET}"
+  echo -e "${GREEN}║                  CACHYOS SETUP COMPLETE! 🎮                  ║${RESET}"
   echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${RESET}\n"
 
-  echo -e "${CYAN}📊 Installation Summary:${RESET}"
-  echo -e "   Duration: ${hours}h ${minutes}m ${seconds}s"
-  echo -e "   Install Mode: ${INSTALL_MODE:-default}"
-  echo -e "   Date: $(get_locale_date)"
+  echo -e "${CYAN}📊 Installation Details${RESET}"
+  echo -e "   ⏱️  Duration: ${GREEN}${hours}h ${minutes}m ${seconds}s${RESET}"
+  echo -e "   🔧 Mode: ${CYAN}${INSTALL_MODE:-default}${RESET}"
+  echo -e "   📅 Completed: ${YELLOW}$(get_locale_date)${RESET}"
 
   if [[ ${#INSTALLED_PACKAGES[@]} -gt 0 ]]; then
     echo -e "\n${GREEN}📦 Packages Installed (${#INSTALLED_PACKAGES[@]}):${RESET}"
@@ -461,5 +664,125 @@ show_installation_summary() {
     echo -e "${YELLOW}🔄 A reboot is recommended to apply all changes.${RESET}"
   fi
 
-  echo -e "${CYAN}Thank you for using CachyInstaller! 🚀${RESET}\n"
+  echo -e "${CYAN}Thank you for using CachyInstaller!${RESET}\n"
+}
+
+# State recovery and validation functions
+save_state() {
+    local state_name="$1"
+    local state_data="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    echo "${state_name}|${timestamp}|${state_data}" > "${STATE_FILE}.tmp"
+    sync "${STATE_FILE}.tmp"
+    mv "${STATE_FILE}.tmp" "$STATE_FILE"
+
+    log_info "State saved: $state_name"
+}
+
+load_state() {
+    if [ -f "$STATE_FILE" ]; then
+        local state_data=$(cat "$STATE_FILE")
+        LAST_STATE=$(echo "$state_data" | cut -d'|' -f1)
+        log_info "Loaded state: $LAST_STATE"
+        return 0
+    fi
+    return 1
+}
+
+validate_state() {
+    local required_files=("$@")
+    local missing_files=()
+
+    for file in "${required_files[@]}"; do
+        if [ ! -f "$file" ]; then
+            missing_files+=("$file")
+        fi
+    done
+
+    if [ ${#missing_files[@]} -gt 0 ]; then
+        log_error "State validation failed - missing files: ${missing_files[*]}"
+        return 1
+    fi
+
+    return 0
+}
+
+cleanup_state() {
+    if [ -f "$STATE_FILE" ]; then
+        rm -f "$STATE_FILE"
+        log_info "State file cleaned up"
+    fi
+    if [ -f "${STATE_FILE}.tmp" ]; then
+        rm -f "${STATE_FILE}.tmp"
+    }
+}
+
+handle_error() {
+    local error_msg="$1"
+    local critical="${2:-false}"
+
+    ((ERROR_COUNT++))
+
+    log_error "$error_msg"
+
+    if [ "$critical" = true ] || [ $ERROR_COUNT -gt 5 ]; then
+        log_error "Too many errors or critical error encountered"
+        cleanup_state
+        exit 1
+    fi
+
+    if [ -n "$LAST_STATE" ]; then
+        log_warning "Error recovery: Attempting to restore last known good state: $LAST_STATE"
+        load_state
+    fi
+}
+
+verify_installation() {
+    local verify_mode="${1:-quick}"
+    local failed=false
+
+    log_info "Verifying installation ($verify_mode mode)..."
+
+    # Basic system checks
+    if ! command -v pacman >/dev/null; then
+        log_error "Package manager not found!"
+        failed=true
+    fi
+
+    # Check critical packages
+    local critical_pkgs=("linux" "systemd" "bash")
+    for pkg in "${critical_pkgs[@]}"; do
+        if ! pacman -Q "$pkg" >/dev/null 2>&1; then
+            log_error "Critical package missing: $pkg"
+            failed=true
+        fi
+    done
+
+    if [ "$verify_mode" = "full" ]; then
+        # Verify all installed packages
+        for pkg in "${INSTALLED_PACKAGES[@]}"; do
+            if ! pacman -Q "$pkg" >/dev/null 2>&1; then
+                log_error "Package verification failed: $pkg"
+                failed=true
+            fi
+        done
+
+        # Verify system services
+        local required_services=("NetworkManager" "systemd-timesyncd")
+        for service in "${required_services[@]}"; do
+            if ! systemctl is-enabled "$service" >/dev/null 2>&1; then
+                log_error "Required service not enabled: $service"
+                failed=true
+            fi
+        done
+    fi
+
+    if [ "$failed" = true ]; then
+        log_error "Installation verification failed"
+        return 1
+    fi
+
+    log_success "Installation verification passed"
+    return 0
 }

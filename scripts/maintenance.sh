@@ -1,5 +1,7 @@
 #!/bin/bash
 set -uo pipefail
+trap 'cleanup_on_error $?' ERR
+trap cleanup_on_exit EXIT
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -7,38 +9,103 @@ source "$SCRIPT_DIR/common.sh"
 
 cleanup_and_optimize() {
   step "Performing final cleanup and optimizations"
+  local errors=0
+
   # Check if lsblk is available for SSD detection
   if command_exists lsblk; then
     if lsblk -d -o rota | grep -q '^0$'; then
-      run_step "Running fstrim on SSDs" sudo fstrim -v /
+      if ! run_step "Running fstrim on SSDs" sudo fstrim -v /; then
+        log_warning "SSD optimization failed but continuing"
+        ((errors++))
+      fi
     fi
   else
     log_warning "lsblk not available. Skipping SSD optimization."
   fi
-  run_step "Cleaning /tmp directory" sudo rm -rf /tmp/*
+
+  # Clean tmp with safeguards
+  if mountpoint -q /tmp; then
+    log_warning "Skipping /tmp cleanup as it is a mounted filesystem"
+  else
+    if ! run_step "Cleaning /tmp directory" find /tmp -mindepth 1 -delete; then
+      log_warning "Some files in /tmp could not be removed"
+      ((errors++))
+    fi
+  fi
+
+  # Ensure disk writes are synced
   run_step "Syncing disk writes" sync
+  if [ $errors -gt 0 ]; then
+    log_warning "Completed with $errors non-critical errors"
+    return 1
+  fi
+  return 0
 }
 
 setup_maintenance() {
   step "Performing comprehensive system cleanup"
-  run_step "Cleaning pacman cache" sudo pacman -Sc --noconfirm
-  run_step "Cleaning paru cache" paru -Sc --noconfirm  # Using paru (CachyOS default) instead of yay
+  local errors=0
 
-  # Flatpak cleanup - remove unused packages and runtimes
+  # Keep at least one previous version of packages
+  if ! run_step "Cleaning pacman cache" sudo pacman -Sc --keep 1 --noconfirm; then
+    log_error "Failed to clean pacman cache"
+    ((errors++))
+  fi
+
+  # Clean AUR cache safely
+  if command -v paru >/dev/null 2>&1; then
+    if ! run_step "Cleaning paru cache" paru -Sc --keep 1 --noconfirm; then
+      log_warning "Failed to clean paru cache"
+      ((errors++))
+    fi
+  fi
+
+  # Flatpak cleanup with retries
   if command -v flatpak >/dev/null 2>&1; then
-    run_step "Removing unused flatpak packages" sudo flatpak uninstall --unused --noninteractive -y
-    run_step "Removing unused flatpak runtimes" sudo flatpak uninstall --unused --noninteractive -y
-    log_success "Flatpak cleanup completed"
+    local retries=3
+    local success=false
+
+    for ((i=1; i<=retries; i++)); do
+      if run_step "Removing unused flatpak packages" sudo flatpak uninstall --unused --noninteractive -y && \
+         run_step "Removing unused flatpak runtimes" sudo flatpak uninstall --unused --noninteractive -y; then
+        success=true
+        break
+      else
+        log_warning "Flatpak cleanup attempt $i failed, retrying..."
+        sleep 2
+      fi
+    done
+
+    if [ "$success" = true ]; then
+      log_success "Flatpak cleanup completed"
+    else
+      log_error "Flatpak cleanup failed after $retries attempts"
+      ((errors++))
+    fi
   else
     log_info "Flatpak not installed, skipping flatpak cleanup"
   fi
 
-  # Remove orphaned packages if any exist
+  # Remove orphaned packages safely
   if pacman -Qtdq &>/dev/null; then
-    run_step "Removing orphaned packages" sudo pacman -Rns $(pacman -Qtdq) --noconfirm
+    local orphans=$(pacman -Qtdq)
+    if [ -n "$orphans" ]; then
+      echo "The following packages will be removed:"
+      pacman -Qi $orphans | grep "Name\|Description"
+      if ! run_step "Removing orphaned packages" sudo pacman -Rns $orphans --noconfirm; then
+        log_error "Failed to remove some orphaned packages"
+        ((errors++))
+      fi
+    fi
   else
     log_info "No orphaned packages found"
   fi
+
+  if [ $errors -gt 0 ]; then
+    log_warning "Maintenance completed with $errors non-critical errors"
+    return 1
+  fi
+  return 0
 }
 
 cleanup_helpers() {
@@ -353,14 +420,49 @@ setup_btrfs_snapshots() {
   fi
 }
 
-# Execute all maintenance and snapshot steps
-cleanup_and_optimize
-setup_maintenance
-cleanup_helpers
-update_mirrorlist
-setup_btrfs_snapshots
+# Function to run all maintenance steps with error handling
+run_maintenance() {
+  local failed_steps=()
+  local success=true
 
-# Final message
-echo ""
-log_success "Maintenance and optimization completed"
-log_info "System is ready for use"
+  if ! cleanup_and_optimize; then
+    failed_steps+=("cleanup_and_optimize")
+    success=false
+  fi
+
+  if ! setup_maintenance; then
+    failed_steps+=("setup_maintenance")
+    success=false
+  fi
+
+  if ! cleanup_helpers; then
+    failed_steps+=("cleanup_helpers")
+    success=false
+  fi
+
+  if ! update_mirrorlist; then
+    failed_steps+=("update_mirrorlist")
+    success=false
+  fi
+
+  if ! setup_btrfs_snapshots; then
+    failed_steps+=("setup_btrfs_snapshots")
+    success=false
+  fi
+
+  echo ""
+  if [ "$success" = true ]; then
+    log_success "All maintenance and optimization steps completed successfully"
+  else
+    log_warning "Maintenance completed with warnings in steps: ${failed_steps[*]}"
+    log_info "Non-critical errors occurred but system should still be usable"
+    return 1
+  fi
+
+  verify_installation "quick"
+  log_info "System is ready for use"
+  return 0
+}
+
+# Execute maintenance with proper error handling
+run_maintenance

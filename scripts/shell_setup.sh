@@ -1,11 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -uo pipefail
+trap 'exit_handler $?' EXIT
 
 # CachyOS Shell Setup - Fish Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
 source "$SCRIPT_DIR/common.sh"
+
+# Handle script exit
+exit_handler() {
+    local exit_code=$1
+    # Return to fish shell if we came from it
+    if [[ -n "${FISH_VERSION:-}" ]] && [[ "$exit_code" -eq 0 ]]; then
+        exec fish
+    fi
+    exit "$exit_code"
+}
 
 setup_fish() {
   step "Setting up enhanced Fish shell configuration"
@@ -70,17 +81,20 @@ setup_fish() {
   # Install Fisher (plugin manager) if not present
   if ! fish -c "functions -q fisher" 2>/dev/null; then
     log_info "Installing Fisher plugin manager"
-    fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher" &>/dev/null
-    log_success "Installed Fisher plugin manager"
+    curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | fish -c "source && fisher install jorgebucaran/fisher" &>/dev/null
+    if [ $? -eq 0 ]; then
+        log_success "Installed Fisher plugin manager"
+    else
+        log_warning "Fisher installation failed, but continuing..."
+    fi
   fi
 
   # Install essential Fish plugins
   log_info "Installing Fish plugins"
-  fish -c "fisher install \
-    jorgebucaran/autopair.fish \
-    franciscolourenco/done \
-    PatrickF1/fzf.fish \
-    meaningful-ooo/sponge" &>/dev/null
+  fish -c "fisher install jorgebucaran/autopair.fish" &>/dev/null
+  fish -c "fisher install franciscolourenco/done" &>/dev/null
+  fish -c "fisher install PatrickF1/fzf.fish" &>/dev/null
+  fish -c "fisher install meaningful-ooo/sponge" &>/dev/null
   log_success "Installed Fish plugins"
 
   # Verify configurations
@@ -89,13 +103,23 @@ setup_fish() {
   # Final setup
   log_info "Setting Fish as default shell (if not already)"
   local fish_path=$(command -v fish)
-  if [[ "$SHELL" != "$fish_path" ]]; then
-    if sudo chsh -s "$fish_path" "$USER" 2>/dev/null; then
-      log_success "Fish is now your default shell"
+  if [[ -n "$fish_path" ]]; then
+    if [[ "$SHELL" != "$fish_path" ]]; then
+      if grep -q "^$fish_path$" /etc/shells || sudo sh -c "echo $fish_path >> /etc/shells"; then
+        if sudo chsh -s "$fish_path" "$USER" 2>/dev/null; then
+          log_success "Fish is now your default shell"
+        else
+          log_error "Failed to set Fish as default shell"
+          log_info "You can do it manually with: chsh -s $fish_path"
+        fi
+      else
+        log_error "Could not add Fish shell to /etc/shells"
+      fi
     else
-      log_error "Failed to set Fish as default shell"
-      log_info "You can do it manually with: chsh -s $(command -v fish)"
+      log_info "Fish is already your default shell"
     fi
+  else
+    log_error "Fish shell not found in system"
   fi
 
   log_success "Fish shell setup completed successfully"
@@ -141,7 +165,7 @@ verify_installations() {
   local all_good=true
 
   # Test Fish config
-  if ! fish -c "source ~/.config/fish/config.fish" 2>/dev/null; then
+  if ! fish -c "status --is-interactive; and source ~/.config/fish/config.fish" 2>/dev/null; then
     log_error "Fish configuration test failed"
     all_good=false
   fi

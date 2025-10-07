@@ -122,7 +122,7 @@ export DRY_RUN
 export INSTALL_LOG
 
 # Define cachy_ascii function
-cachy_ascii() {
+show_cachy_banner() {
     echo -e "${BLUE}"
     echo '   ____            _            ___           _        _ _           '
     echo '  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __ '
@@ -141,7 +141,12 @@ fi
 
 # Clear screen and show banner
 clear
-cachy_ascii
+# Install helper utilities first
+source "$SCRIPTS_DIR/common.sh"
+install_helper_utils
+
+# Show banner
+show_cachy_banner
 
 # Check system requirements for new users
 
@@ -435,9 +440,11 @@ fi
 
 # Cleanup non-essential UI tools and show final summary
 if command -v gum >/dev/null 2>&1; then
-  show_installation_summary
+  print_summary
   ui_info "Cleaning up temporary UI tools..."
-  sudo pacman -Rns --noconfirm gum figlet >/dev/null 2>&1 || true
+  if command -v gum >/dev/null 2>&1; then
+      sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
+  fi
 fi
 
 # Save current shell for restoration after reboot
@@ -452,23 +459,13 @@ if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
   sleep 10
   sudo reboot
 else
-  # Ensure we handle both Fish and Bash shell prompts
-  if [ -n "$FISH_VERSION" ]; then
-    read -p "Would you like to reboot now? [Y/n]: " response
-    set response (string lower $response)
-    if [ -z "$response" ] || string match -q 'y*' "$response"; then
+  # Unified reboot prompt that works in both Bash and Fish
+  read -p "Would you like to reboot now? [Y/n]: " response
+  response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+  if [[ -z "$response" || "$response" == "y" || "$response" == "yes" ]]; then
       echo -e "\n${GREEN}Rebooting system...${RESET}"
       sleep 2
       sudo reboot
-    fi
-  else
-    read -p "Would you like to reboot now? [Y/n]: " response
-    response=${response,,}
-    if [[ -z "$response" || "$response" =~ ^[Yy]$ ]]; then
-      echo -e "\n${GREEN}Rebooting system...${RESET}"
-      sleep 2
-      sudo reboot
-    fi
   fi
 fi
 

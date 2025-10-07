@@ -590,7 +590,9 @@ setup_btrfs_snapshots() {
   sudo pacman -Sy >/dev/null 2>&1 || log_warning "Failed to update package database"
 
   # Install packages
-  install_packages_quietly snapper snap-pac btrfs-assistant
+  install_package snapper
+  install_package snap-pac
+  install_package btrfs-assistant
 
   # Configure Snapper
   configure_snapper || { log_error "Snapper configuration failed"; return 1; }

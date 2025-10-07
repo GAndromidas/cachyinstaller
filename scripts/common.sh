@@ -13,6 +13,84 @@ declare -a INSTALLED_PACKAGES
 declare -a ERRORS
 declare -a WARNINGS
 
+# Utility functions
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+run_step() {
+    local description="$1"
+    shift
+    echo -e "\n>> $description..."
+    if "$@"; then
+        return 0
+    else
+        log_error "Failed to execute: $description"
+        return 1
+    fi
+}
+
+install_packages_quietly() {
+    local failed=0
+    for pkg in "$@"; do
+        if ! install_package "$pkg"; then
+            ((failed++))
+        fi
+    done
+    return $failed
+}
+
+cleanup_on_exit() {
+    log_performance "Total runtime"
+    {
+        echo -e "\nFinal Status:"
+        echo "Packages installed: ${#INSTALLED_PACKAGES[@]}"
+        echo "Warnings: ${#WARNINGS[@]}"
+        echo "Errors: ${#ERRORS[@]}"
+        echo -e "\nInstallation ended: $(date)"
+    } >> "$INSTALL_LOG"
+}
+
+cleanup_on_error() {
+    if [ ${#ERRORS[@]} -gt 0 ]; then
+        log_error "Installation failed with errors"
+        cleanup_on_exit
+        exit 1
+    fi
+}
+
+show_installation_summary() {
+    echo -e "\n${CYAN}Installation Summary:${RESET}"
+    echo -e "Packages installed: ${#INSTALLED_PACKAGES[@]}"
+    echo -e "Warnings: ${#WARNINGS[@]}"
+    echo -e "Errors: ${#ERRORS[@]}"
+
+    if [ ${#INSTALLED_PACKAGES[@]} -gt 0 ]; then
+        echo -e "\n${GREEN}Successfully installed packages:${RESET}"
+        printf '%s\n' "${INSTALLED_PACKAGES[@]}" | sort
+    fi
+
+    if [ ${#ERRORS[@]} -gt 0 ]; then
+        echo -e "\n${RED}Errors encountered:${RESET}"
+        printf '%s\n' "${ERRORS[@]}"
+    fi
+}
+
+# Helper utilities that should be installed first
+HELPER_UTILS=(
+    base-devel
+    flatpak
+    git
+    curl
+    wget
+    rsync
+    gum
+    ufw
+    cronie
+    fzf
+    zoxide
+)
+
 # Logging functions
 log_error() {
     ERRORS+=("$1")
@@ -110,6 +188,18 @@ install_package() {
     local retry_delay=5
     local i=1
 
+    # Check if it's a helper utility
+    for util in "${HELPER_UTILS[@]}"; do
+        if [[ "$package" == "$util" ]]; then
+            log_info "Installing helper utility: $package..."
+            if sudo pacman -S --noconfirm --needed "$package" >/dev/null 2>&1; then
+                INSTALLED_PACKAGES+=("$package")
+                log_success "Successfully installed helper utility: $package"
+                return 0
+            fi
+        fi
+    done
+
     if ! package_installed "$package"; then
         log_info "Installing $package..."
 
@@ -162,8 +252,20 @@ detect_desktop_environment() {
     fi
 }
 
+# Install helper utilities first
+install_helper_utils() {
+    log_info "Installing helper utilities..."
+    for util in "${HELPER_UTILS[@]}"; do
+        install_package "$util"
+    done
+    log_success "Helper utilities installation complete"
+}
+
 # Menu functions
 show_menu() {
+    # Install helper utilities before showing menu
+    install_helper_utils
+
     if command -v gum >/dev/null 2>&1; then
         # Show styled header with gum
         gum style --border double --margin "1 2" --padding "1 4" --foreground 46 "CachyOS Gaming Installer"

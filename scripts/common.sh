@@ -307,17 +307,30 @@ install_package() {
         if sudo pacman -S --noconfirm --needed "$package"; then
             INSTALLED_PACKAGES+=("$package")
             log_success "Installed $package"
+            if ! pacman -Q "$package" >/dev/null 2>&1; then
+                if sudo pacman -S --needed --noconfirm "$package" >/dev/null 2>&1; then
+                    log_success "Successfully installed $package"
+                    return 0
+                else
+                    log_error "Failed to install $package"
+                    return 1
+                fi
+            fi
             return 0
-        else
-            log_error "Failed to install $package"
-            return 1
-        fi
-    fi
-    return 0
+        }
+
+        # Function to install package with verification and timeout
+        install_package_with_verify() {
+            local package=$1
+            local timeout=${2:-300}  # Default 5 minute timeout
+
+            if timeout "$timeout" sudo pacman -S --needed --noconfirm "$package" >/dev/null 2>&1; then
+                if pacman -Q "$package" >/dev/null 2>&1; then
+                    log_success "Successfully installed and verified $package"
                     return 0
                 else
                     log_error "Package $package appears to have failed verification after installation"
-                    continue
+                    return 1
                 fi
             else
                 local exit_code=$?

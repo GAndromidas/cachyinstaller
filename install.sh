@@ -123,9 +123,22 @@ export INSTALL_LOG
 
 arch_ascii
 
-# Silently install gum and figlet for beautiful UI before menu
+# Define arch_ascii function
+arch_ascii() {
+    echo -e "${BLUE}"
+    echo '   ____           _            ___  ____'
+    echo '  / ___|__ _  ___| |__  _   _ / _ \/ ___|'
+    echo ' | |   / _` |/ __| |_ \| | | | | | \___ \'
+    echo ' | |__| (_| | (__| | | | |_| | |_| |___) |'
+    echo '  \____\__,_|\___|_| |_|\__, |\___/|____/'
+    echo '                         |___/'
+    echo -e "${RESET}"
+}
+
+# Silently install gum for beautiful UI before menu
 if ! command -v gum >/dev/null 2>&1; then
-  sudo pacman -S --noconfirm gum figlet >/dev/null 2>&1 || true
+    sudo pacman -Sy >/dev/null 2>&1
+    sudo pacman -S --noconfirm gum >/dev/null 2>&1
 fi
 
 # Check system requirements for new users

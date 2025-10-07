@@ -123,14 +123,17 @@ export INSTALL_LOG
 
 # Define cachy_ascii function
 show_cachy_banner() {
-    echo -e "${BLUE}"
-    echo '   ____            _            ___           _        _ _           '
-    echo '  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __ '
-    echo ' | |   / _` |/ __| "_ \| | | | | || "_ \/ __| __/ _` | | |/ _ \ "__|'
-    echo ' | |__| (_| | (__| | | | |_| | | || | | \__ \ || (_| | | |  __/ |   '
-    echo '  \____\__,_|\___|_| |_|\__, |___||_| |_|___/\__\__,_|_|_|\___|_|   '
-    echo '                        |___/                                          '
-    echo -e "${RESET}"
+    echo -e "${BOLD}${WHITE}╭───────────────────────────────────────────────────╮${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}                                               ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}   ____            _            ___           _        _ _           ${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __ ${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN} | |   / _\` |/ __| '_ \| | | | | || '_ \/ __| __/ _\` | | |/ _ \ '__| ${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN} | |__| (_| | (__| | | | |_| | | || | | \__ \ || (_| | | |  __/ |   ${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}  \____\__,_|\___|_| |_|\__, |___||_| |_|___/\__\__,_|_|_|\___|_|   ${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}   ${CYAN}                        |___/                                          ${RESET}   ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET}                                               ${BOLD}${WHITE}│${RESET}"
+    echo -e "${BOLD}${WHITE}╰───────────────────────────────────────────────────╯${RESET}"
+    echo ""
 }
 
 # Silently install gum for beautiful UI before menu
@@ -141,9 +144,7 @@ fi
 
 # Clear screen and show banner
 clear
-# Install helper utilities first
 source "$SCRIPTS_DIR/common.sh"
-install_helper_utils
 
 # Show banner
 show_cachy_banner
@@ -189,6 +190,14 @@ check_system_requirements() {
 check_system_requirements
 show_menu
 export INSTALL_MODE
+
+# Install helper utilities after menu selection
+echo -e "\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
+echo -e "${DIM}───────────────────────────────────────────────────${RESET}\n"
+install_helper_utils
+
+# Install helper utilities after menu selection
+install_helper_utils
 
 # Dry-run mode banner
 if [ "$DRY_RUN" = true ]; then
@@ -279,9 +288,8 @@ save_log_on_exit() {
 }
 
 # Installation start header
-print_header "Starting CachyOS Enhancement Installation" \
-  "This process will take approximately 10-20 minutes depending on your internet speed." \
-  "You can safely leave this running - it will handle everything automatically!"
+echo -e "\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
+echo -e "${DIM}───────────────────────────────────────────────────${RESET}\n"
 
 # Step 1: System Preparation
 if ! is_step_complete "system_preparation"; then

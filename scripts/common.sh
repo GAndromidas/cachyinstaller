@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 
 # Colors for terminal output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
+RED='\033[38;5;196m'      # Bright red
+GREEN='\033[38;5;46m'     # Bright green
+YELLOW='\033[38;5;226m'   # Bright yellow
+BLUE='\033[38;5;39m'      # Bright blue
+CYAN='\033[38;5;51m'      # Bright cyan
+WHITE='\033[38;5;255m'    # Bright white
+BOLD='\033[1m'
+DIM='\033[2m'
 RESET='\033[0m'
 
 # Global arrays for tracking
@@ -36,6 +39,8 @@ install_packages_quietly() {
         if ! install_package "$pkg"; then
             ((failed++))
         fi
+        # Add small delay for readability
+        sleep 0.1
     done
     return $failed
 }
@@ -117,36 +122,36 @@ show_installation_summary() {
 
 # Helper utilities that should be installed first
 HELPER_UTILS=(
-    base-devel
-    flatpak
-    git
-    curl
-    wget
-    rsync
-    gum
-    ufw
-    cronie
-    fzf
-    zoxide
+    "base-devel"
+    "flatpak"
+    "git"
+    "curl"
+    "wget"
+    "rsync"
+    "gum"
+    "ufw"
+    "cronie"
+    "fzf"
+    "zoxide"
 )
 
 # Logging functions
 log_error() {
     ERRORS+=("$1")
-    echo -e "${RED}[ERROR]${RESET} $1" | tee -a "$INSTALL_LOG"
+    echo -e "${BOLD}${RED}==> ERROR:${RESET} $1" | tee -a "$INSTALL_LOG"
 }
 
 log_warning() {
     WARNINGS+=("$1")
-    echo -e "${YELLOW}[WARNING]${RESET} $1" | tee -a "$INSTALL_LOG"
+    echo -e "${BOLD}${YELLOW}==> WARNING:${RESET} $1" | tee -a "$INSTALL_LOG"
 }
 
 log_success() {
-    echo -e "${GREEN}[SUCCESS]${RESET} $1" | tee -a "$INSTALL_LOG"
+    echo -e "${BOLD}${GREEN}==> SUCCESS:${RESET} $1" | tee -a "$INSTALL_LOG"
 }
 
 log_info() {
-    echo -e "${BLUE}[INFO]${RESET} $1" | tee -a "$INSTALL_LOG"
+    echo -e "${BOLD}${BLUE}==>${RESET} $1" | tee -a "$INSTALL_LOG"
 }
 
 # UI helper functions
@@ -197,23 +202,24 @@ print_step_header() {
     local current_step="$1"
     local total_steps="$2"
     local description="$3"
-    echo -e "\n${BLUE}Step ${current_step}/${total_steps}: ${description}${RESET}"
-    echo "----------------------------------------"
+    echo -e "\n${BOLD}${BLUE}:: ${WHITE}Step ${current_step}/${total_steps}: ${description}${RESET}"
+    echo -e "${DIM}───────────────────────────────────────────────────${RESET}"
 }
 
 print_header() {
     local title="$1"
     shift
-    echo -e "\n${CYAN}=== ${title} ===${RESET}"
+    echo -e "\n${BOLD}${WHITE}╭───────────────────────────────────────────────────╮${RESET}"
+    echo -e "${BOLD}${WHITE}│${RESET} ${CYAN}${title}${RESET}"
     for line in "$@"; do
-        echo -e "${BLUE}${line}${RESET}"
+        echo -e "${BOLD}${WHITE}│${RESET} ${DIM}${line}${RESET}"
     done
-    echo -e "----------------------------------------\n"
+    echo -e "${BOLD}${WHITE}╰───────────────────────────────────────────────────╯${RESET}\n"
 }
 
 step() {
     local step_name="$1"
-    echo -e "\n${CYAN}>> ${step_name}...${RESET}"
+    echo -e "\n${BOLD}${BLUE}==> ${WHITE}${step_name}...${RESET}"
 }
 
 # Package management functions
@@ -293,18 +299,21 @@ detect_desktop_environment() {
 
 # Install helper utilities first
 install_helper_utils() {
-    log_info "Installing helper utilities..."
     for util in "${HELPER_UTILS[@]}"; do
-        install_package "$util"
+        echo -e "${BOLD}${BLUE}==>${RESET} Installing helper utility: ${util}"
+        if sudo pacman -S --noconfirm --needed "$util" >/dev/null 2>&1; then
+            echo -e "${BOLD}${GREEN}==>${RESET} Successfully installed helper utility: ${util}"
+            INSTALLED_PACKAGES+=("$util")
+        else
+            echo -e "${BOLD}${RED}==>${RESET} Failed to install helper utility: ${util}"
+            ERRORS+=("Failed to install $util")
+        fi
+        sleep 0.1
     done
-    log_success "Helper utilities installation complete"
 }
 
 # Menu functions
 show_menu() {
-    # Install helper utilities before showing menu
-    install_helper_utils
-
     if command -v gum >/dev/null 2>&1; then
         # Show styled header with gum
         gum style --border double --margin "1 2" --padding "1 4" --foreground 46 "CachyOS Gaming Installer"
@@ -391,7 +400,7 @@ save_log_on_exit() {
 # Export functions and variables
 export -f log_error log_warning log_success log_info
 export -f ui_info ui_success ui_error ui_warn
-export -f install_package install_packages package_installed
+export -f install_package install_packages package_installed install_helper_utils
 export -f print_step_header print_header step
 export -f detect_desktop_environment show_menu print_summary
 export INSTALLED_PACKAGES ERRORS WARNINGS

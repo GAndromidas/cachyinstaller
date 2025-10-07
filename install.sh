@@ -121,17 +121,15 @@ export VERBOSE
 export DRY_RUN
 export INSTALL_LOG
 
-arch_ascii
-
-# Define arch_ascii function
-arch_ascii() {
+# Define cachy_ascii function
+cachy_ascii() {
     echo -e "${BLUE}"
-    echo '   ____           _            ___  ____'
-    echo '  / ___|__ _  ___| |__  _   _ / _ \/ ___|'
-    echo ' | |   / _` |/ __| |_ \| | | | | | \___ \'
-    echo ' | |__| (_| | (__| | | | |_| | |_| |___) |'
-    echo '  \____\__,_|\___|_| |_|\__, |\___/|____/'
-    echo '                         |___/'
+    echo '   ____            _            ___           _        _ _           '
+    echo '  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __ '
+    echo ' | |   / _` |/ __| "_ \| | | | | || "_ \/ __| __/ _` | | |/ _ \ "__|'
+    echo ' | |__| (_| | (__| | | | |_| | | || | | \__ \ || (_| | | |  __/ |   '
+    echo '  \____\__,_|\___|_| |_|\__, |___||_| |_|___/\__\__,_|_|_|\___|_|   '
+    echo '                        |___/                                          '
     echo -e "${RESET}"
 }
 
@@ -140,6 +138,12 @@ if ! command -v gum >/dev/null 2>&1; then
     sudo pacman -Sy >/dev/null 2>&1
     sudo pacman -S --noconfirm gum >/dev/null 2>&1
 fi
+
+# Clear screen and show banner
+clear
+cachy_ascii
+
+# Check system requirements for new users
 
 # Check system requirements for new users
 check_system_requirements() {

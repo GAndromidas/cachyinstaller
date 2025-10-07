@@ -8,7 +8,7 @@ CONFIG_FILE="$HOME/.cachyinstaller.conf"
 TOTAL_STEPS=7  # Total installation steps
 
 # Detect if we're running in Fish and re-execute in bash if needed
-if [ -n "$FISH_VERSION" ]; then
+if [ -n "${FISH_VERSION:-}" ] || [ "$(ps -p $$ -o comm=)" = "fish" ]; then
     exec bash "$0" "$@"
 fi
 

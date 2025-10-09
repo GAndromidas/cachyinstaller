@@ -42,17 +42,22 @@ measure_download_speed() {
         fi
 
         # If curl failed or speed is 0, try wget
-        if [ $speed -eq 0 ] && command -v wget >/dev/null 2>&1; then
+        if [ "$speed" -eq 0 ] && command -v wget >/dev/null 2>&1; then
             local start_time=$(date +%s)
             if wget -O /dev/null "$fallback_file" 2>&1 | grep -q "MB/s"; then
                 local end_time=$(date +%s)
                 local duration=$((end_time - start_time))
-                speed=$((5 / duration * 8)) # Assuming ~5MB file size
+                # Avoid division by zero
+                if [ "$duration" -eq 0 ]; then
+                    speed=0
+                else
+                    speed=$((5 / duration * 8)) # Assuming ~5MB file size
+                fi
             fi
         fi
 
         # If still no valid speed, try ping
-        if [ $speed -eq 0 ]; then
+        if [ "$speed" -eq 0 ]; then
             local ping_time=$(ping -c 1 archlinux.org 2>/dev/null | grep "time=" | cut -d "=" -f 4 | cut -d " " -f 1)
             if [ -n "$ping_time" ]; then
                 if [ "${ping_time%.*}" -lt 50 ]; then
@@ -65,12 +70,12 @@ measure_download_speed() {
             fi
         fi
 
-        [ $speed -gt 0 ] && break
+        [ "$speed" -gt 0 ] && break
         sleep 1
     done
 
     # Use conservative default if all attempts failed
-    if [ $speed -eq 0 ]; then
+    if [ "$speed" -eq 0 ]; then
         speed=10
         log_warning "Could not measure network speed, using conservative default of ${speed}Mbps"
     else
@@ -86,7 +91,7 @@ update_mirrors() {
 
     log_info "Running rate-mirrors to find fastest mirrors silently..."
     if sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch &>/dev/null; then
-        sudo pacman -Syy &>/dev/null
+        sudo pacman -Syy &>/dev/null # Suppress output of pacman -Syy
         log_success "Mirrorlist updated successfully"
     else
         log_error "Failed to update mirrorlist with rate-mirrors"
@@ -103,11 +108,11 @@ optimize_pacman() {
     step "Optimizing pacman configuration"
 
     # Determine optimal parallel downloads based on speed
-    if [ $speed -ge $SPEED_FAST ]; then
+    if [ "$speed" -ge "$SPEED_FAST" ]; then
         parallel_downloads=15
-    elif [ $speed -ge $SPEED_MEDIUM ]; then
+    elif [ "$speed" -ge "$SPEED_MEDIUM" ]; then
         parallel_downloads=10
-    elif [ $speed -ge $SPEED_SLOW ]; then
+    elif [ "$speed" -ge "$SPEED_SLOW" ]; then
         parallel_downloads=5
     else
         parallel_downloads=3
@@ -122,15 +127,17 @@ optimize_pacman() {
     log_info "Configuring pacman with parallel downloads: $parallel_downloads"
 
     # Enable parallel downloads
-    sudo sed -i "s/^#ParallelDownloads.*/ParallelDownloads = $parallel_downloads/" "$pacman_conf"
-    if ! grep -q "^ParallelDownloads" "$pacman_conf" &>/dev/null; then
+    if grep -q "^#ParallelDownloads" "$pacman_conf"; then
+        sudo sed -i "s/^#ParallelDownloads.*/ParallelDownloads = $parallel_downloads/" "$pacman_conf"
+    elif ! grep -q "^ParallelDownloads" "$pacman_conf"; then
         echo "ParallelDownloads = $parallel_downloads" | sudo tee -a "$pacman_conf" >/dev/null
     fi
 
     # Enable other optimizations
     for option in "Color" "CheckSpace" "VerbosePkgLists" "ILoveCandy"; do
-        sudo sed -i "s/^#$option$/$option/" "$pacman_conf"
-        if ! grep -q "^$option" "$pacman_conf" &>/dev/null; then
+        if grep -q "^#$option" "$pacman_conf"; then
+            sudo sed -i "s/^#$option$/$option/" "$pacman_conf"
+        elif ! grep -q "^$option" "$pacman_conf"; then
             echo "$option" | sudo tee -a "$pacman_conf" >/dev/null
         fi
     done
@@ -151,11 +158,11 @@ optimize_paru() {
     step "Optimizing paru configuration"
 
     # Set parallel downloads based on speed
-    if [ $speed -ge $SPEED_FAST ]; then
+    if [ "$speed" -ge "$SPEED_FAST" ]; then
         max_parallel=10
-    elif [ $speed -ge $SPEED_MEDIUM ]; then
+    elif [ "$speed" -ge "$SPEED_MEDIUM" ]; then
         max_parallel=8
-    elif [ $speed -ge $SPEED_SLOW ]; then
+    elif [ "$speed" -ge "$SPEED_SLOW" ]; then
         max_parallel=5
     else
         max_parallel=3
@@ -169,8 +176,8 @@ optimize_paru() {
     fi
 
     # Update paru settings
-    if grep -q "^MaxParallel" "$paru_conf" &>/dev/null; then
-        sudo sed -i "s/^MaxParallel.*/MaxParallel = $max_parallel/" "$paru_conf"
+    if grep -q "^MaxParallel" "$paru_conf"; then
+        sudo sed -i "s/^MaxParallel = .*/MaxParallel = $max_parallel/" "$paru_conf"
     else
         echo "MaxParallel = $max_parallel" | sudo tee -a "$paru_conf" >/dev/null
     fi
@@ -238,7 +245,7 @@ main() {
     local start_time=$(date +%s)
 
     # Display header
-    figlet_banner "System Preparation" || echo "=== System Preparation ==="
+    figlet_banner "System Preparation" || log_info "=== System Preparation ==="
 
     # Check network speed and optimize package managers
     local network_speed=$(measure_download_speed)

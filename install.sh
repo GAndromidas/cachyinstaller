@@ -126,9 +126,9 @@ show_cachy_banner() {
     echo ""
     echo -e "${BOLD}${CYAN}   ____            _            ___           _        _ _${RESET}"
     echo -e "${BOLD}${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET}"
-    echo -e "${BOLD}${CYAN} | |   / _\\\` |/ __| \\'_ \\| | | | | || \\'_ \\/ __| __/ _\\\` | | |/ _ \\\\ \\'__|${RESET}"
-    echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\\\__ \\\\ || (_| | | |  __/ |${RESET}"
-    echo -e "${BOLD}${CYAN}  \\\\____\\\\__,_|\\\\___|_| |_|\\\\__, |___||_| |_|___/\\\\__\\\\__,_|_|_|\\\\___|_|${RESET}"
+    echo -e "${BOLD}${CYAN} | |   / _\` |/ __| \\'_ \\| | | | | || \\'_ \\/ __| __/ _\` | | |/ _ \\ '_ _|_|${RESET}" # Corrected here
+    echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\__ \\ || (_| | | |  __/ |${RESET}"
+    echo -e "${BOLD}${CYAN}  \\____\\__,_|\\___|_| |_|\\__, |___||_| |_|___/\\__\\__,_|_|_|\\___|_|${RESET}" # Corrected here
     echo -e "${BOLD}${CYAN}                        |___/${RESET}"
     echo ""
 }
@@ -175,7 +175,7 @@ check_system_requirements() {
   # Check available disk space (at least 2GB)
   local available_space=$(df / | awk 'NR==2 {print $4}')
   if [[ $available_space -lt 2097152 ]]; then
-    echo -e "${RED}Error: Insufficient disk space!${RESET}"
+    echo -e "${RED}Error: Insufficient disk space!"
     echo -e "${YELLOW}   At least 2GB free space is required.${RESET}"
     echo -e "${YELLOW}   Available: $((available_space / 1024 / 1024))GB${RESET}"
     exit 1

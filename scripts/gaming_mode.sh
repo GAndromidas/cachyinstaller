@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -uo pipefail
 
 # Gaming setup for CachyOS - Always enabled as it's a gaming distro
@@ -50,6 +50,7 @@ fi
 # Detect and install GPU-specific drivers
 detect_and_install_gpu_drivers() {
   local gpu_type=$(detect_gpu_type)
+  local skip_mesa_install=$1 # New parameter to skip mesa if cachyos-gaming-meta handles it
   log_info "Detected GPU type: $gpu_type"
 
   case "$gpu_type" in
@@ -60,24 +61,34 @@ detect_and_install_gpu_drivers() {
       ;;
     amd)
       log_info "Installing AMD gaming drivers... (Mesa drivers)"
-      local amd_packages=("lib32-mesa" "mesa" "lib32-vulkan-radeon" "vulkan-radeon")
-      # Try mesa-git packages first (CachyOS specific)
-      if pacman -Ss lib32-mesa-git >/dev/null 2>&1; then
-        local amd_git_packages=("lib32-mesa-git" "mesa-git")
-        install_packages_quietly "${amd_git_packages[@]}" || install_packages_quietly "${amd_packages[@]}"
+      local amd_packages=("lib32-vulkan-radeon" "vulkan-radeon")
+      if [ "$skip_mesa_install" != "true" ]; then
+        amd_packages+=("lib32-mesa" "mesa")
+        # Try mesa-git packages first (CachyOS specific)
+        if pacman -Ss lib32-mesa-git >/dev/null 2>&1; then
+          local amd_git_packages=("lib32-mesa-git" "mesa-git")
+          install_packages_quietly "${amd_git_packages[@]}" || install_packages_quietly "${amd_packages[@]}"
+        else
+          install_packages_quietly "${amd_packages[@]}"
+        fi
       else
         install_packages_quietly "${amd_packages[@]}"
       fi
       ;;
     intel)
       log_info "Installing Intel gaming drivers..."
-      local intel_packages=("lib32-mesa" "mesa" "lib32-vulkan-intel" "vulkan-intel")
+      local intel_packages=("lib32-vulkan-intel" "vulkan-intel")
+      if [ "$skip_mesa_install" != "true" ]; then
+        intel_packages+=("lib32-mesa" "mesa")
+      fi
       install_packages_quietly "${intel_packages[@]}"
       ;;
     *)
       log_warning "Unknown GPU type, installing generic drivers..."
-      local generic_packages=("lib32-mesa" "mesa")
-      install_packages_quietly "${generic_packages[@]}"
+      if [ "$skip_mesa_install" != "true" ]; then
+        local generic_packages=("lib32-mesa" "mesa")
+        install_packages_quietly "${generic_packages[@]}"
+      fi
       ;;
   esac
 }
@@ -109,14 +120,6 @@ _install_fallback_gaming_apps() {
     else
         log_info "All individual gaming utilities already installed or not needed."
     fi
-
-    # Install Steam if it's not already installed (excluding steam-native-runtime due to previous errors)
-    step "Installing Steam"
-    if ! pacman -Q steam &>/dev/null; then
-        install_packages_quietly "steam"
-    else
-        log_info "Steam already installed, skipping individual installation."
-    fi
 }
 
 # Install CachyOS gaming meta package (includes Steam, MangoHud, GameMode, etc.)
@@ -127,25 +130,18 @@ if sudo pacman -S --noconfirm --needed cachyos-gaming-meta 2>/dev/null; then
     INSTALLED_PACKAGES+=("cachyos-gaming-meta")
     META_GAMING_INSTALLED=true
 
-    # Install GPU-specific drivers
-    detect_and_install_gpu_drivers
+    # Install GPU-specific drivers (Mesa is assumed to be handled by cachyos-gaming-meta)
+    detect_and_install_gpu_drivers "true"
 
-    # Copy MangoHud configuration if available
-    step "Configuring MangoHud"
-    MANGOHUD_CONFIG_DIR="$HOME/.config/MangoHud"
-    MANGOHUD_CONFIG_SOURCE="$CONFIGS_DIR/MangoHud.conf"
-
-    mkdir -p "$MANGOHUD_CONFIG_DIR"
-
-    if [[ -f "$MANGOHUD_CONFIG_SOURCE" ]]; then
-        cp "$MANGOHUD_CONFIG_SOURCE" "$MANGOHUD_CONFIG_DIR/MangoHud.conf"
-        log_success "MangoHud configuration applied"
-    else
-        log_info "Using default MangoHud configuration"
-    fi
+    # If cachyos-gaming-meta is installed, assume it handles MangoHud and GameMode configuration.
+    # We can skip explicit MangoHud/GameMode installation and configuration here.
+    log_info "MangoHud and GameMode are assumed to be handled by cachyos-gaming-meta."
 
 else
     log_warning "cachyos-gaming-meta not available, falling back to individual packages"
+
+    # Install GPU-specific drivers (Mesa is needed if meta-package isn't installed)
+    detect_and_install_gpu_drivers "false"
 
     # Install MangoHud for performance monitoring
     step "Installing MangoHud"
@@ -170,9 +166,6 @@ else
     step "Installing GameMode"
     GAMEMODE_PACKAGES=("gamemode" "lib32-gamemode")
     install_packages_quietly "${GAMEMODE_PACKAGES[@]}"
-
-    # Install GPU-specific drivers
-    detect_and_install_gpu_drivers
 
     # Call the fallback function if cachyos-gaming-meta is not available
     _install_fallback_gaming_apps
@@ -202,24 +195,27 @@ if sudo pacman -S --noconfirm --needed cachyos-gaming-applications 2>/dev/null; 
     log_success "CachyOS gaming applications installed"
     INSTALLED_PACKAGES+=("cachyos-gaming-applications")
 else
-    log_info "cachyos-gaming-applications not available, checking for Heroic Games Launcher"
+    # Only try to install Heroic if cachyos-gaming-meta was NOT installed (as it might include it)
+    if [ "$META_GAMING_INSTALLED" = "false" ]; then
+        log_info "cachyos-gaming-applications not available, checking for Heroic Games Launcher"
 
-    # Check if Heroic Games Launcher is already installed or if cachyos-gaming-meta was installed (which might include it)
-    if ! $META_GAMING_INSTALLED && ! pacman -Q heroic-games-launcher &>/dev/null && ! pacman -Q heroic-games-launcher-bin &>/dev/null; then
-      log_info "Heroic Games Launcher not found, installing via AUR"
+        # Check if Heroic Games Launcher is already installed
+        if ! pacman -Q heroic-games-launcher &>/dev/null && ! pacman -Q heroic-games-launcher-bin &>/dev/null; then
+          log_info "Heroic Games Launcher not found, installing via AUR"
 
-      if command -v paru &>/dev/null; then
-        if paru -S --noconfirm --needed heroic-games-launcher-bin; then
-          log_success "Heroic Games Launcher installed successfully"
-          INSTALLED_PACKAGES+=("heroic-games-launcher-bin (AUR)")
-        else
-          log_error "Failed to install Heroic Games Launcher"
-        fi
-      else
-        log_error "paru not found. Skipping Heroic Games Launcher installation."
-      fi
+          if command -v paru &>/dev/null; then
+            if paru -S --noconfirm --needed heroic-games-launcher-bin; then
+              log_success "Heroic Games Launcher installed successfully"
+              INSTALLED_PACKAGES+=("heroic-games-launcher-bin (AUR)")
+            else
+              log_error "Failed to install Heroic Games Launcher"
+            fi
+          else
+            log_error "paru not found. Skipping Heroic Games Launcher installation."
+          fi
+         fi
     else
-      log_info "Heroic Games Launcher already installed or skipped due to cachyos-gaming-meta installation."
+      log_info "cachyos-gaming-applications not available. Heroic Games Launcher skipped because cachyos-gaming-meta was installed."
     fi
 fi
 
@@ -237,7 +233,7 @@ if command -v flatpak >/dev/null 2>&1; then
   fi
 
   for pkg in "${GAMING_FLATPAKS[@]}"; do
-    if ! flatpak list | grep -q "$pkg"; then
+    if ! flatpak list --columns=application | grep -q "^$pkg\$"; then # More precise check for flatpak ID
       log_info "Installing Flatpak: $pkg"
       if sudo flatpak install -y flathub "$pkg"; then
         log_success "Installed $pkg"

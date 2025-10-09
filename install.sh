@@ -124,12 +124,12 @@ export INSTALL_LOG
 # Define cachy_ascii function (corrected escaping for echo -e)
 show_cachy_banner() {
     echo ""
-    echo -e "${BOLD}${CYAN}   ____            _            ___           _        _ _${RESET}"
-    echo -e "${BOLD}${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET}"
-    echo -e "${BOLD}${CYAN} | |   / _\` |/ __| \\'_ \\| | | | | || \\'_ \\/ __| __/ _\` | | |/ _ \\ '_ _|_|${RESET}" # Corrected here
-    echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\__ \\ || (_| | | |  __/ |${RESET}"
-    echo -e "${BOLD}${CYAN}  \\____\\__,_|\\___|_| |_|\\__, |___||_| |_|___/\\__\\__,_|_|_|\\___|_|${RESET}" # Corrected here
-    echo -e "${BOLD}${CYAN}                        |___/${RESET}"
+    echo -e "${BOLD}${CYAN}   ____           _           ___           _        _ _           "
+    echo -e "  / ___|__ _  ___| |__  _   _|_ _|_ __  ___| |_ __ _| | | ___ _ __ "
+    echo -e " | |   / _\` |/ __| \'_ \\| | | || || \'_ \\/ __| __/ _\` | | |/ _ \\ \'__|"
+    echo -e " | |__| (_| | (__| | | | |_| || || | | \\__ \\ || (_| | | |  __/ |   "
+    echo -e "  \\____\\__,_|\\___|_| |_|\\__, |___|_| |_|___/\\__\\__,_|_|_|\\___|_|   "
+    echo -e "                        |___/${RESET}"
     echo ""
 }
 
@@ -175,7 +175,7 @@ check_system_requirements() {
   # Check available disk space (at least 2GB)
   local available_space=$(df / | awk 'NR==2 {print $4}')
   if [[ $available_space -lt 2097152 ]]; then
-    echo -e "${RED}Error: Insufficient disk space!"
+    echo -e "${RED}Error: Insufficient disk space!${RESET}"
     echo -e "${YELLOW}   At least 2GB free space is required.${RESET}"
     echo -e "${YELLOW}   Available: $((available_space / 1024 / 1024))GB${RESET}"
     exit 1
@@ -187,8 +187,8 @@ show_menu
 export INSTALL_MODE
 
 # Install helper utilities after menu selection
-ui_info "\\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
-ui_info "${DIM}───────────────────────────────────────────────────${RESET}\\n"
+ui_info "\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
+ui_info "${DIM}───────────────────────────────────────────────────${RESET}\n"
 install_helper_utils
 
 # Dry-run mode banner
@@ -280,8 +280,8 @@ save_log_on_exit() {
 }
 
 # Installation start header
-ui_info "\\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
-ui_info "${DIM}───────────────────────────────────────────────────${RESET}\\n"
+ui_info "\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
+ui_info "${DIM}───────────────────────────────────────────────────${RESET}\n"
 
 # Step 1: System Preparation
 if ! is_step_complete "system_preparation"; then
@@ -392,7 +392,7 @@ else
 fi
 
 if [ "$DRY_RUN" = true ]; then
-  print_header "Dry-Run Preview Completed"
+  print_header "DRY-RUN MODE ENABLED" "Preview mode: No changes will be made" "Package installations will be simulated" "System configurations will be previewed"
   ui_info "" # Added for spacing
   ui_info "${YELLOW}This was a preview run. No changes will be made to your system.${RESET}"
   ui_info "" # Added for spacing
@@ -439,7 +439,7 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
   fi
 
   # Display reboot banner and prompt
-  ui_info "\\n${CYAN}$(figlet "Reboot System")${RESET}"
+  ui_info "\n${CYAN}$(figlet "Reboot System")${RESET}"
 
   # Unified reboot prompt: default to 'yes'
   read -p "Would you like to reboot now? [Y/n]: " response
@@ -447,7 +447,7 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
   response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
 
   if [[ "$response" == "y" || "$response" == "yes" ]]; then
-      ui_info "\\n${GREEN}Rebooting system...${RESET}"
+      ui_info "\n${GREEN}Rebooting system...${RESET}"
       sleep 2
       sudo reboot
   else

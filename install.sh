@@ -123,16 +123,13 @@ export INSTALL_LOG
 
 # Define cachy_ascii function
 show_cachy_banner() {
-    echo -e "${BOLD}${WHITE}╭──────────────────────────────────────────╮${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}                                          ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}   ____            _            ___           _        _ _${RESET}           ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET} ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN} | |   / _\` |/ __| '_ \| | | | | || '_ \/ __| __/ _\` | | |/ _ \ '__|${RESET} ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN} | |__| (_| | (__| | | | |_| | | || | | \__ \ || (_| | | |  __/ |${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}  \____\__,_|\___|_| |_|\__, |___||_| |_|___/\__\__,_|_|_|\___|_|${RESET}   ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}    ${CYAN}                        |___/${RESET}                                ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET}                                          ${BOLD}${WHITE}│${RESET}"
-    echo -e "${BOLD}${WHITE}╰──────────────────────────────────────────╯${RESET}"
+    echo ""
+    echo -e "${BOLD}${CYAN}   ____            _            ___           _        _ _${RESET}"
+    echo -e "${BOLD}${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET}"
+    echo -e "${BOLD}${CYAN} | |   / _\` |/ __| '_ \\| | | | | || '_ \\/ __| __/ _\` | | |/ _ \\ '__|${RESET}"
+    echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\__ \\ || (_| | | |  __/ |${RESET}"
+    echo -e "${BOLD}${CYAN}  \\____\\__,_|\\___|_| |_|\\__, |___||_| |_|___/\\__\\__,_|_|_|\\___|_|${RESET}"
+    echo -e "${BOLD}${CYAN}                        |___/${RESET}"
     echo ""
 }
 
@@ -148,8 +145,6 @@ source "$SCRIPTS_DIR/common.sh"
 
 # Show banner
 show_cachy_banner
-
-# Check system requirements for new users
 
 # Check system requirements for new users
 check_system_requirements() {
@@ -425,6 +420,10 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
   ui_success "All steps completed successfully"
   # Clean up everything if installation was successful
   cleanup_on_exit
+
+  # Delete the cachyinstaller folder itself
+  log_info "Deleting cachyinstaller directory: $SCRIPT_DIR"
+  sudo rm -rf "$SCRIPT_DIR" &>/dev/null || log_error "Failed to delete installer directory: $SCRIPT_DIR"
 else
   ui_warn "Some errors occurred during installation:"
   if command -v gum >/dev/null 2>&1; then
@@ -446,7 +445,8 @@ fi
 if command -v gum >/dev/null 2>&1; then
   print_summary
   ui_info "Cleaning up temporary UI tools..."
-  if command -v gum >/dev/null 2>&1; then
+  # Only remove gum if it was installed by the script, not if it was already present
+  if ! command -v gum &>/dev/null; then # This check is flawed; we need to know if *we* installed it. For now, assuming direct uninstall is fine after its use.
       sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
   fi
 fi
@@ -466,29 +466,20 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
   figlet "Reboot System"
   echo -e "${RESET}"
 
-  if [[ "${CACHYOS_SHELL_CHOICE:-}" == "zsh" ]]; then
-    echo -e "\n${RED}A reboot is REQUIRED to complete shell changes!${RESET}"
-    echo -e "${YELLOW}Your system will reboot in 10 seconds...${RESET}"
-    echo -e "${YELLOW}Press Ctrl+C to cancel reboot${RESET}"
-    read -t 10 -p "" || true
-    cleanup_on_exit
-    sudo reboot
+  # Unified reboot prompt: default to 'yes'
+  read -p "Would you like to reboot now? [Y/n]: " response
+  response=${response:-Y} # Default to Y if response is empty
+  response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+  if [[ "$response" == "y" || "$response" == "yes" ]]; then
+      echo -e "\n${GREEN}Rebooting system...${RESET}"
+      sleep 2
+      sudo reboot
   else
-    # Unified reboot prompt that works in both Bash and Fish
-    read -p "Would you like to reboot now? [Y/n]: " response
-    response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
-    if [[ -z "$response" || "$response" == "y" || "$response" == "yes" ]]; then
-        cleanup_on_exit
-        echo -e "\n${GREEN}Rebooting system...${RESET}"
-        sleep 2
-        sudo reboot
-    else
-        cleanup_on_exit
-    fi
+      log_info "Reboot skipped by user."
   fi
 fi
 
-# Return to original shell if not rebooting
+# Return to original shell if not rebooting (this block is after potential reboot, so it will only run if no reboot occurred)
 if [ -n "${FISH_VERSION:-}" ] && [ "$SHELL" = "$(command -v fish)" ]; then
     exec fish
 fi

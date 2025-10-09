@@ -13,7 +13,7 @@ step "Gaming Mode Setup"
 log_info "=== CACHYOS GAMING MODE ==="
 log_info "INSTALL_MODE: ${INSTALL_MODE:-default}"
 log_info "Gaming packages: Always installed"
-log_info "=========================="
+log_info "==========================="
 
 # Show Gaming Mode banner
 figlet_banner "Gaming Mode"
@@ -26,7 +26,7 @@ detect_gpu_type() {
   if lspci | grep -i nvidia >/dev/null 2>&1; then
     gpu_type="nvidia"
   # Check for AMD GPU
-  elif lspci | grep -i "amd\|radeon" >/dev/null 2>&1; then
+  elif lspci | grep -i "amd\\|radeon" >/dev/null 2>&1; then
     gpu_type="amd"
   # Check for Intel GPU
   elif lspci | grep -i intel.*graphics >/dev/null 2>&1; then
@@ -59,7 +59,7 @@ detect_and_install_gpu_drivers() {
       install_packages_quietly "${nvidia_packages[@]}"
       ;;
     amd)
-      log_info "Installing AMD gaming drivers..."
+      log_info "Installing AMD gaming drivers... (Mesa drivers)"
       local amd_packages=("lib32-mesa" "mesa" "lib32-vulkan-radeon" "vulkan-radeon")
       # Try mesa-git packages first (CachyOS specific)
       if pacman -Ss lib32-mesa-git >/dev/null 2>&1; then
@@ -84,9 +84,11 @@ detect_and_install_gpu_drivers() {
 
 # Install CachyOS gaming meta package (includes Steam, MangoHud, GameMode, etc.)
 step "Installing CachyOS gaming meta package"
+META_GAMING_INSTALLED=false
 if sudo pacman -S --noconfirm --needed cachyos-gaming-meta 2>/dev/null; then
     log_success "CachyOS gaming meta package installed (includes Steam, Wine, MangoHud, GameMode, Lutris, Gamescope, Goverlay)"
     INSTALLED_PACKAGES+=("cachyos-gaming-meta")
+    META_GAMING_INSTALLED=true
 
     # Install GPU-specific drivers
     detect_and_install_gpu_drivers
@@ -135,29 +137,38 @@ else
     # Install GPU-specific drivers
     detect_and_install_gpu_drivers
 
-    # Install essential gaming utilities (excluding Steam and Wine - handled separately)
-    step "Installing gaming utilities"
-    GAMING_PACKAGES=(
-        "discord"
-        "lutris"
-        "obs-studio"
-    )
-    install_packages_quietly "${GAMING_PACKAGES[@]}"
+    # Install individual gaming utilities (discord, lutris, obs-studio)
+    step "Installing individual gaming utilities"
+    local individual_gaming_packages=()
 
-    # Try steam-native-runtime first, then regular steam
-    step "Installing Steam with Mesa-git compatibility"
-    steam_installed=false
-
-    # Try steam-native-runtime first, then regular steam
-    if install_package "steam-native-runtime"; then
-        log_success "Steam (native runtime) installed - compatible with Mesa-git"
-        steam_installed=true
-    elif install_package "steam"; then
-        log_success "Steam installed"
-        steam_installed=true
+    if ! pacman -Q discord &>/dev/null; then
+        individual_gaming_packages+=("discord")
     else
-        log_error "Steam installation failed - try manual installation"
-        log_info "Manual options: sudo pacman -S steam-native-runtime or sudo pacman -S steam"
+        log_info "Discord already installed, skipping individual installation."
+    fi
+    if ! pacman -Q lutris &>/dev/null; then
+        individual_gaming_packages+=("lutris")
+    else
+        log_info "Lutris already installed, skipping individual installation."
+    fi
+    if ! pacman -Q obs-studio &>/dev/null; then
+        individual_gaming_packages+=("obs-studio")
+    else
+        log_info "OBS Studio already installed, skipping individual installation."
+    fi
+
+    if [ ${#individual_gaming_packages[@]} -gt 0 ]; then
+        install_packages_quietly "${individual_gaming_packages[@]}"
+    else
+        log_info "All individual gaming utilities already installed or not needed."
+    fi
+
+    # Install Steam if it's not already installed (excluding steam-native-runtime)
+    step "Installing Steam"
+    if ! pacman -Q steam &>/dev/null; then
+        install_packages_quietly "steam"
+    else
+        log_info "Steam already installed, skipping individual installation."
     fi
 fi
 
@@ -187,8 +198,8 @@ if sudo pacman -S --noconfirm --needed cachyos-gaming-applications 2>/dev/null; 
 else
     log_info "cachyos-gaming-applications not available, checking for Heroic Games Launcher"
 
-    # Check if Heroic Games Launcher is already installed (might be included in cachyos-gaming-meta)
-    if ! pacman -Q heroic-games-launcher &>/dev/null && ! pacman -Q heroic-games-launcher-bin &>/dev/null; then
+    # Check if Heroic Games Launcher is already installed or if cachyos-gaming-meta was installed (which might include it)
+    if ! $META_GAMING_INSTALLED && ! pacman -Q heroic-games-launcher &>/dev/null && ! pacman -Q heroic-games-launcher-bin &>/dev/null; then
       log_info "Heroic Games Launcher not found, installing via AUR"
 
       if command -v paru &>/dev/null; then
@@ -202,7 +213,7 @@ else
         log_error "paru not found. Skipping Heroic Games Launcher installation."
       fi
     else
-      log_info "Heroic Games Launcher already installed (included in cachyos-gaming-meta)"
+      log_info "Heroic Games Launcher already installed or skipped due to cachyos-gaming-meta installation."
     fi
 fi
 

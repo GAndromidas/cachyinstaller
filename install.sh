@@ -1,4 +1,4 @@
-```#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -uo pipefail
 
 # Configuration files
@@ -121,14 +121,14 @@ export VERBOSE
 export DRY_RUN
 export INSTALL_LOG
 
-# Define cachy_ascii function
+# Define cachy_ascii function (corrected escaping for echo -e)
 show_cachy_banner() {
     echo ""
     echo -e "${BOLD}${CYAN}   ____            _            ___           _        _ _${RESET}"
     echo -e "${BOLD}${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET}"
-    echo -e "${BOLD}${CYAN} | |   / _\\\\` |/ __| \'_ \\\\| | | | | || \'_ \\\\/ __| __/ _\\\\` | | |/ _ \\\\ \'__|${RESET}"
+    echo -e "${BOLD}${CYAN} | |   / _\\\` |/ __| \\'_ \\| | | | | || \\'_ \\/ __| __/ _\\\` | | |/ _ \\\\ \\'__|${RESET}"
     echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\\\__ \\\\ || (_| | | |  __/ |${RESET}"
-    echo -e "${BOLD}${CYAN}  \\\\____\\\\\\\\__,_|\\\\___|_| |_|\\\\\\\\__, |___||_| |_|___/\\\\__\\\\\\\\__,_|_|_|\\\\\\\\___|_|${RESET}"
+    echo -e "${BOLD}${CYAN}  \\\\____\\\\__,_|\\\\___|_| |_|\\\\__, |___||_| |_|___/\\\\__\\\\__,_|_|_|\\\\___|_|${RESET}"
     echo -e "${BOLD}${CYAN}                        |___/${RESET}"
     echo ""
 }
@@ -187,19 +187,19 @@ show_menu
 export INSTALL_MODE
 
 # Install helper utilities after menu selection
-echo -e "\\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
-echo -e "${DIM}───────────────────────────────────────────────────${RESET}\\n"
+ui_info "\\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
+ui_info "${DIM}───────────────────────────────────────────────────${RESET}\\n"
 install_helper_utils
 
 # Dry-run mode banner
 if [ "$DRY_RUN" = true ]; then
-  print_header "Dry-Run Preview Completed"
-  echo ""
+  print_header "DRY-RUN MODE ENABLED" "Preview mode: No changes will be made" "Package installations will be simulated" "System configurations will be previewed"
+  ui_info "" # Added for spacing
   ui_info "${YELLOW}This was a preview run. No changes will be made to your system.${RESET}"
-  echo ""
+  ui_info "" # Added for spacing
   ui_info "${CYAN}To perform the actual installation, run:${RESET}"
   ui_info "${GREEN}  ./install.sh${RESET}"
-  echo ""
+  ui_info "" # Added for spacing
 else
   print_header "CachyOS Enhancement Completed Successfully"
 fi
@@ -279,10 +279,9 @@ save_log_on_exit() {
   } >> "$INSTALL_LOG"
 }
 
-
 # Installation start header
-echo -e "\\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
-echo -e "${DIM}───────────────────────────────────────────────────${RESET}\\n"
+ui_info "\\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
+ui_info "${DIM}───────────────────────────────────────────────────${RESET}\\n"
 
 # Step 1: System Preparation
 if ! is_step_complete "system_preparation"; then
@@ -427,28 +426,28 @@ log_performance "Total installation time"
 # Handle installation results with unified styling
 if [ ${#ERRORS[@]} -eq 0 ]; then
   ui_success "All steps completed successfully"
-  # Clean up everything if installation was successful
   cleanup_on_exit # This will remove .log and .conf, and gum/figlet packages. It will NOT remove .state
 
   # Delete the cachyinstaller folder itself
-  log_info "Deleting cachyinstaller directory: $SCRIPT_DIR"
+  log_info "Cleaning up installation directory: $SCRIPT_DIR"
   sudo rm -rf "$SCRIPT_DIR" &>/dev/null || log_error "Failed to delete installer directory: $SCRIPT_DIR"
   log_success "Removed installation directory: $SCRIPT_DIR"
 
-  # Ensure figlet is installed for the banner (should already be there from initial check)
+  # Ensure figlet is installed for the banner (should be handled by helper_utils earlier)
   if ! command -v figlet >/dev/null 2>&1; then
     sudo pacman -S --noconfirm figlet >/dev/null 2>&1 || true
   fi
 
   # Display reboot banner and prompt
-  ui_info "\n${CYAN}$(figlet \"Reboot System\")${RESET}"
+  ui_info "\\n${CYAN}$(figlet "Reboot System")${RESET}"
 
+  # Unified reboot prompt: default to 'yes'
   read -p "Would you like to reboot now? [Y/n]: " response
   response=${response:-Y} # Default to Y if response is empty
   response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
 
   if [[ "$response" == "y" || "$response" == "yes" ]]; then
-      ui_info "\n${GREEN}Rebooting system...${RESET}"
+      ui_info "\\n${GREEN}Rebooting system...${RESET}"
       sleep 2
       sudo reboot
   else

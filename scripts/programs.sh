@@ -146,15 +146,17 @@ install_pacman_quietly() {
   fi
 
   log_info "Installing ${total} packages via Pacman: ${to_install[*]}"
-  if sudo pacman -S --noconfirm --needed "${to_install[@]}"; then
+  if install_packages "${to_install[@]}"; then
     for pkg in "${to_install[@]}"; do
-      pacman -Q "$pkg" &>/dev/null && PROGRAMS_INSTALLED+=("$pkg")
+      # Add to PROGRAMS_INSTALLED only if successfully installed by common.sh
+      package_installed "$pkg" && PROGRAMS_INSTALLED+=("$pkg")
     done
     log_success "Pacman batch installation completed"
   else
-    log_error "Some Pacman packages failed to install"
+    log_error "Some Pacman packages failed to install. Check log for details."
+    # The common.sh functions already add to ERRORS array, but we can also add to PROGRAMS_ERRORS for specific tracking
     for pkg in "${to_install[@]}"; do
-      pacman -Q "$pkg" &>/dev/null || PROGRAMS_ERRORS+=("Failed to install $pkg")
+      ! package_installed "$pkg" && PROGRAMS_ERRORS+=("Failed to install $pkg (Pacman)")
     done
   fi
 }
@@ -182,7 +184,9 @@ install_flatpak_quietly() {
   else
     log_error "Some Flatpak packages failed to install"
     for pkg in "${to_install[@]}"; do
-      flatpak list --app | grep -qw "$pkg" || PROGRAMS_ERRORS+=("Failed to install Flatpak $pkg")
+      if ! flatpak list --app | grep -qw "$pkg"; then
+        PROGRAMS_ERRORS+=("Failed to install Flatpak $pkg")
+      fi
     done
   fi
 }
@@ -208,9 +212,11 @@ install_aur_quietly() {
     done
     log_success "AUR batch installation completed"
   else
-    log_error "Some AUR packages failed to install"
+    log_error "Some AUR packages failed to install. Check log for details."
     for pkg in "${to_install[@]}"; do
-      pacman -Q "$pkg" &>/dev/null || PROGRAMS_ERRORS+=("Failed to install AUR $pkg")
+      if ! pacman -Q "$pkg" &>/dev/null; then
+        PROGRAMS_ERRORS+=("Failed to install AUR $pkg")
+      fi
     done
   fi
 }

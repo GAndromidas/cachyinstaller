@@ -76,10 +76,7 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
         rm -f "$HOME/.cachyinstaller.conf"
     fi
 
-    # Remove the installer directory if it exists
-    if [ -d "$HOME/cachyinstaller" ]; then
-        rm -rf "$HOME/cachyinstaller"
-    fi
+
 
     # Remove temporary UI tools if they were installed by us
     if command -v gum >/dev/null 2>&1; then
@@ -219,7 +216,16 @@ print_header() {
 
 step() {
     local step_name="$1"
-    echo -e "\n${BOLD}${BLUE}==> ${WHITE}${step_name}...${RESET}"
+    echo -e "\\n${BOLD}${BLUE}==> ${WHITE}${step_name}...${RESET}"
+}
+
+figlet_banner() {
+    local text="$1"
+    if command -v figlet >/dev/null 2>&1; then
+        echo -e "\\n${CYAN}"
+        figlet -c -t "$text"
+        echo -e "${RESET}"
+    fi
 }
 
 # Package management functions
@@ -398,7 +404,7 @@ save_log_on_exit() {
 }
 
 # Export functions and variables
-export -f log_error log_warning log_success log_info
+export -f log_error log_warning log_success log_info figlet_banner
 export -f ui_info ui_success ui_error ui_warn
 export -f install_package install_packages package_installed install_helper_utils
 export -f print_step_header print_header step

@@ -148,17 +148,16 @@ else
     step "Installing Steam with Mesa-git compatibility"
     steam_installed=false
 
-    if sudo pacman -S --noconfirm --needed steam-native-runtime 2>/dev/null; then
+    # Try steam-native-runtime first, then regular steam
+    if install_package "steam-native-runtime"; then
         log_success "Steam (native runtime) installed - compatible with Mesa-git"
-        INSTALLED_PACKAGES+=("steam-native-runtime")
         steam_installed=true
-    elif sudo pacman -S --noconfirm --needed steam 2>/dev/null; then
+    elif install_package "steam"; then
         log_success "Steam installed"
-        INSTALLED_PACKAGES+=("steam")
         steam_installed=true
     else
         log_error "Steam installation failed - try manual installation"
-        log_info "Manual options: sudo pacman -S steam-native-runtime"
+        log_info "Manual options: sudo pacman -S steam-native-runtime or sudo pacman -S steam"
     fi
 fi
 

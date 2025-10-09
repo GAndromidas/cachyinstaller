@@ -165,7 +165,7 @@ verify_installations() {
   local all_good=true
 
   # Test Fish config
-  if ! fish -c "status --is-interactive; and source ~/.config/fish/config.fish" 2>/dev/null; then
+  if ! fish -c "source ~/.config/fish/config.fish" 2>/dev/null; then
     log_error "Fish configuration test failed"
     all_good=false
   fi

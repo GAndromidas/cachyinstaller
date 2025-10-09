@@ -136,10 +136,10 @@ show_cachy_banner() {
     echo ""
 }
 
-# Silently install gum for beautiful UI before menu
-if ! command -v gum >/dev/null 2>&1; then
+# Silently install gum and figlet for UI and banners before menu
+if ! command -v gum >/dev/null 2>&1 || ! command -v figlet >/dev/null 2>&1; then
     sudo pacman -Sy >/dev/null 2>&1
-    sudo pacman -S --noconfirm gum >/dev/null 2>&1
+    sudo pacman -S --noconfirm gum figlet >/dev/null 2>&1
 fi
 
 # Clear screen and show banner
@@ -194,9 +194,6 @@ export INSTALL_MODE
 # Install helper utilities after menu selection
 echo -e "\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
 echo -e "${DIM}───────────────────────────────────────────────────${RESET}\n"
-install_helper_utils
-
-# Install helper utilities after menu selection
 install_helper_utils
 
 # Dry-run mode banner
@@ -492,6 +489,6 @@ if [ ${#ERRORS[@]} -eq 0 ]; then
 fi
 
 # Return to original shell if not rebooting
-if [ -n "$FISH_VERSION" ] && [ "$SHELL" = "$(command -v fish)" ]; then
+if [ -n "${FISH_VERSION:-}" ] && [ "$SHELL" = "$(command -v fish)" ]; then
     exec fish
 fi

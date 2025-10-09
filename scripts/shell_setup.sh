@@ -145,9 +145,9 @@ setup_fastfetch() {
     cp "$CONFIGS_DIR/fastfetch/config.jsonc" "$HOME/.config/fastfetch/config.jsonc"
     chmod 644 "$HOME/.config/fastfetch/config.jsonc"
 
-    # Test the new configuration
+    # Test the new configuration silently
     if command -v fastfetch >/dev/null 2>&1; then
-      if fastfetch --config "$HOME/.config/fastfetch/config.jsonc" --dry-run >/dev/null 2>&1; then
+      if fastfetch --config "$HOME/.config/fastfetch/config.jsonc" --dry-run &>/dev/null; then
         log_success "Fastfetch configuration installed and verified"
       else
         log_warning "Fastfetch configuration might have issues but was installed"
@@ -165,7 +165,7 @@ verify_installations() {
   local all_good=true
 
   # Test Fish config
-  if ! fish -c "source ~/.config/fish/config.fish" 2>/dev/null; then
+  if ! fish -c "source ~/.config/fish/config.fish" &>/dev/null; then
     log_error "Fish configuration test failed"
     all_good=false
   fi
@@ -176,9 +176,9 @@ verify_installations() {
     all_good=false
   fi
 
-  # Test Fastfetch
+  # Test Fastfetch silently
   if command -v fastfetch >/dev/null 2>&1; then
-    if ! fastfetch --config "$HOME/.config/fastfetch/config.jsonc" --dry-run >/dev/null 2>&1; then
+    if ! fastfetch --config "$HOME/.config/fastfetch/config.jsonc" --dry-run &>/dev/null; then
       log_warning "Fastfetch configuration test failed"
       all_good=false
     fi

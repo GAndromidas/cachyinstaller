@@ -84,9 +84,9 @@ measure_download_speed() {
 update_mirrors() {
     step "Updating mirrorlist with rate-mirrors"
 
-    log_info "Running rate-mirrors to find fastest mirrors..."
-    if sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch; then
-        sudo pacman -Syy
+    log_info "Running rate-mirrors to find fastest mirrors silently..."
+    if sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch &>/dev/null; then
+        sudo pacman -Syy &>/dev/null
         log_success "Mirrorlist updated successfully"
     else
         log_error "Failed to update mirrorlist with rate-mirrors"
@@ -123,14 +123,14 @@ optimize_pacman() {
 
     # Enable parallel downloads
     sudo sed -i "s/^#ParallelDownloads.*/ParallelDownloads = $parallel_downloads/" "$pacman_conf"
-    if ! grep -q "^ParallelDownloads" "$pacman_conf"; then
+    if ! grep -q "^ParallelDownloads" "$pacman_conf" &>/dev/null; then
         echo "ParallelDownloads = $parallel_downloads" | sudo tee -a "$pacman_conf" >/dev/null
     fi
 
     # Enable other optimizations
     for option in "Color" "CheckSpace" "VerbosePkgLists" "ILoveCandy"; do
         sudo sed -i "s/^#$option$/$option/" "$pacman_conf"
-        if ! grep -q "^$option" "$pacman_conf"; then
+        if ! grep -q "^$option" "$pacman_conf" &>/dev/null; then
             echo "$option" | sudo tee -a "$pacman_conf" >/dev/null
         fi
     done
@@ -169,7 +169,7 @@ optimize_paru() {
     fi
 
     # Update paru settings
-    if grep -q "^MaxParallel" "$paru_conf"; then
+    if grep -q "^MaxParallel" "$paru_conf" &>/dev/null; then
         sudo sed -i "s/^MaxParallel.*/MaxParallel = $max_parallel/" "$paru_conf"
     else
         echo "MaxParallel = $max_parallel" | sudo tee -a "$paru_conf" >/dev/null

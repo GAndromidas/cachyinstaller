@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+```#!/usr/bin/env bash
 set -uo pipefail
 
 # Configuration files
@@ -126,9 +126,9 @@ show_cachy_banner() {
     echo ""
     echo -e "${BOLD}${CYAN}   ____            _            ___           _        _ _${RESET}"
     echo -e "${BOLD}${CYAN}  / ___|__ _  ___| |__  _   _ |_ _|_ __  ___| |_ __ _| | | ___ _ __${RESET}"
-    echo -e "${BOLD}${CYAN} | |   / _\` |/ __| '_ \\| | | | | || '_ \\/ __| __/ _\` | | |/ _ \\ '__|${RESET}"
-    echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\__ \\ || (_| | | |  __/ |${RESET}"
-    echo -e "${BOLD}${CYAN}  \\____\\__,_|\\___|_| |_|\\__, |___||_| |_|___/\\__\\__,_|_|_|\\___|_|${RESET}"
+    echo -e "${BOLD}${CYAN} | |   / _\\\\` |/ __| \'_ \\\\| | | | | || \'_ \\\\/ __| __/ _\\\\` | | |/ _ \\\\ \'__|${RESET}"
+    echo -e "${BOLD}${CYAN} | |__| (_| | (__| | | | |_| | | || | | \\\\__ \\\\ || (_| | | |  __/ |${RESET}"
+    echo -e "${BOLD}${CYAN}  \\\\____\\\\\\\\__,_|\\\\___|_| |_|\\\\\\\\__, |___||_| |_|___/\\\\__\\\\\\\\__,_|_|_|\\\\\\\\___|_|${RESET}"
     echo -e "${BOLD}${CYAN}                        |___/${RESET}"
     echo ""
 }
@@ -187,21 +187,21 @@ show_menu
 export INSTALL_MODE
 
 # Install helper utilities after menu selection
-echo -e "\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
-echo -e "${DIM}───────────────────────────────────────────────────${RESET}\n"
+echo -e "\\n${BOLD}${BLUE}:: Installing helper utilities...${RESET}"
+echo -e "${DIM}───────────────────────────────────────────────────${RESET}\\n"
 install_helper_utils
 
 # Dry-run mode banner
 if [ "$DRY_RUN" = true ]; then
+  print_header "Dry-Run Preview Completed"
   echo ""
-  echo -e "${YELLOW}========================================${RESET}"
-  echo -e "${YELLOW}         DRY-RUN MODE ENABLED${RESET}"
-  echo -e "${YELLOW}========================================${RESET}"
-  echo -e "${CYAN}Preview mode: No changes will be made${RESET}"
-  echo -e "${CYAN}Package installations will be simulated${RESET}"
-  echo -e "${CYAN}System configurations will be previewed${RESET}"
+  ui_info "${YELLOW}This was a preview run. No changes will be made to your system.${RESET}"
   echo ""
-  sleep 2
+  ui_info "${CYAN}To perform the actual installation, run:${RESET}"
+  ui_info "${GREEN}  ./install.sh${RESET}"
+  echo ""
+else
+  print_header "CachyOS Enhancement Completed Successfully"
 fi
 
 # Prompt for sudo using UI helpers
@@ -269,7 +269,7 @@ get_step_completion_time() {
   fi
 }
 
-# Function to save log on exit
+# Function to save log on exit (this now gets called by trap, if no reboot occurs)
 save_log_on_exit() {
   {
     echo ""
@@ -279,9 +279,10 @@ save_log_on_exit() {
   } >> "$INSTALL_LOG"
 }
 
+
 # Installation start header
-echo -e "\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
-echo -e "${DIM}───────────────────────────────────────────────────${RESET}\n"
+echo -e "\\n${BOLD}${BLUE}:: Starting CachyOS Enhancement Installation...${RESET}"
+echo -e "${DIM}───────────────────────────────────────────────────${RESET}\\n"
 
 # Step 1: System Preparation
 if ! is_step_complete "system_preparation"; then
@@ -304,9 +305,13 @@ fi
 if ! is_step_complete "shell_setup"; then
   print_step_header 2 "$TOTAL_STEPS" "Fish Shell Enhancement"
   ui_info "Enhancing Fish shell with custom configurations..."
-  step "Shell Setup" && source "$SCRIPTS_DIR/shell_setup.sh" || log_error "Shell setup failed"
-  mark_step_complete "shell_setup"
-  ui_success "Step 2 completed"
+  if step "Shell Setup" && source "$SCRIPTS_DIR/shell_setup.sh"; then
+    mark_step_complete "shell_setup"
+    ui_success "Step 2 completed"
+  else
+    log_error "Shell setup failed"
+    # Do not exit here, allow other steps to try and complete
+  fi
 else
   ui_info "Step 2 (Shell Setup) already completed - skipping"
 fi
@@ -315,9 +320,13 @@ fi
 if ! is_step_complete "programs_installation"; then
   print_step_header 3 "$TOTAL_STEPS" "Programs Installation"
   ui_info "Installing additional applications..."
-  step "Programs Installation" && source "$SCRIPTS_DIR/programs.sh" || log_error "Programs installation failed"
-  mark_step_complete "programs_installation"
-  ui_success "Step 3 completed"
+  if step "Programs Installation" && source "$SCRIPTS_DIR/programs.sh"; then
+    mark_step_complete "programs_installation"
+    ui_success "Step 3 completed"
+  else
+    log_error "Programs installation failed"
+    # Do not exit here, allow other steps to try and complete
+  fi
 else
   ui_info "Step 3 (Programs Installation) already completed - skipping"
 fi
@@ -326,9 +335,13 @@ fi
 if ! is_step_complete "gaming_mode"; then
   print_step_header 4 "$TOTAL_STEPS" "Gaming Mode"
   ui_info "Setting up gaming optimizations..."
-  step "Gaming Mode" && source "$SCRIPTS_DIR/gaming_mode.sh" || log_error "Gaming Mode failed"
-  mark_step_complete "gaming_mode"
-  ui_success "Step 4 completed"
+  if step "Gaming Mode" && source "$SCRIPTS_DIR/gaming_mode.sh"; then
+    mark_step_complete "gaming_mode"
+    ui_success "Step 4 completed"
+  else
+    log_error "Gaming Mode failed"
+    # Do not exit here, allow other steps to try and complete
+  fi
 else
   ui_info "Step 4 (Gaming Mode) already completed - skipping"
 fi
@@ -337,9 +350,13 @@ fi
 if ! is_step_complete "fail2ban_setup"; then
   print_step_header 5 "$TOTAL_STEPS" "Fail2ban Setup"
   ui_info "Setting up security protection..."
-  step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh" || log_error "Fail2ban setup failed"
-  mark_step_complete "fail2ban_setup"
-  ui_success "Step 5 completed"
+  if step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh"; then
+    mark_step_complete "fail2ban_setup"
+    ui_success "Step 5 completed"
+  else
+    log_error "Fail2ban setup failed"
+    # Do not exit here, allow other steps to try and complete
+  fi
 else
   ui_info "Step 5 (Fail2ban Setup) already completed - skipping"
 fi
@@ -348,9 +365,13 @@ fi
 if ! is_step_complete "system_services"; then
   print_step_header 6 "$TOTAL_STEPS" "System Services"
   ui_info "Configuring system services..."
-  step "System Services" && source "$SCRIPTS_DIR/system_services.sh" || log_error "System services failed"
-  mark_step_complete "system_services"
-  ui_success "Step 6 completed"
+  if step "System Services" && source "$SCRIPTS_DIR/system_services.sh"; then
+    mark_step_complete "system_services"
+    ui_success "Step 6 completed"
+  else
+    log_error "System services failed"
+    # Do not exit here, allow other steps to try and complete
+  fi
 else
   ui_info "Step 6 (System Services) already completed - skipping"
 fi
@@ -359,35 +380,40 @@ fi
 if ! is_step_complete "maintenance"; then
   print_step_header 7 "$TOTAL_STEPS" "Maintenance"
   ui_info "Setting up system maintenance..."
-  step "Maintenance" && source "$SCRIPTS_DIR/maintenance.sh" || log_error "Maintenance failed"
-  mark_step_complete "maintenance"
-  ui_success "Step 7 completed"
+  if step "Maintenance" && source "$SCRIPTS_DIR/maintenance.sh"; then
+    mark_step_complete "maintenance"
+    ui_success "Step 7 completed"
+  else
+    log_error "Maintenance failed"
+    # Do not exit here, allow other steps to try and complete
+  fi
 else
-  ui_info "Step 7 (Maintenance) already completed - skipping"
+  completion_time=$(get_step_completion_time "maintenance")
+  ui_info "Step 7 (Maintenance) already completed on $completion_time - skipping"
 fi
 
 if [ "$DRY_RUN" = true ]; then
   print_header "Dry-Run Preview Completed"
-  echo ""
-  echo -e "${YELLOW}This was a preview run. No changes were made to your system.${RESET}"
-  echo ""
-  echo -e "${CYAN}To perform the actual installation, run:${RESET}"
-  echo -e "${GREEN}  ./install.sh${RESET}"
-  echo ""
+  ui_info "" # Added for spacing
+  ui_info "${YELLOW}This was a preview run. No changes will be made to your system.${RESET}"
+  ui_info "" # Added for spacing
+  ui_info "${CYAN}To perform the actual installation, run:${RESET}"
+  ui_info "${GREEN}  ./install.sh${RESET}"
+  ui_info "" # Added for spacing
 else
   print_header "CachyOS Enhancement Completed Successfully"
 fi
 
-echo ""
-echo -e "${YELLOW}What's been set up for you:${RESET}"
-echo -e "  - Enhanced Fish shell configuration"
-echo -e "  - Additional applications and tools"
-echo -e "  - Security features (firewall, SSH protection)"
-echo -e "  - Gaming optimizations"
-echo -e "  - Laptop optimizations (if laptop detected)"
-echo -e "  - Btrfs snapshots (if Btrfs filesystem detected)"
-echo -e "  - Dual-boot with Windows (if detected)"
-echo ""
+ui_info "" # Added for spacing
+ui_info "${YELLOW}What's been set up for you:${RESET}"
+ui_info "  - Enhanced Fish shell configuration"
+ui_info "  - Additional applications and tools"
+ui_info "  - Security features (firewall, SSH protection)"
+ui_info "  - Gaming optimizations"
+ui_info "  - Laptop optimizations (if laptop detected)"
+ui_info "  - Btrfs snapshots (if Btrfs filesystem detected)"
+ui_info "  - Dual-boot with Windows (if detected)"
+ui_info "" # Added for spacing
 
 if declare -f print_programs_summary >/dev/null 2>&1; then
   print_programs_summary
@@ -396,34 +422,39 @@ fi
 print_summary
 log_performance "Total installation time"
 
-# Save final log
-{
-  echo ""
-  echo "=========================================="
-  echo "Installation Summary"
-  echo "=========================================="
-  echo "Completed steps:"
-  [ -f "$STATE_FILE" ] && cat "$STATE_FILE" | sed 's/^/  - /'
-  echo ""
-  if [ ${#ERRORS[@]} -gt 0 ]; then
-    echo "Errors encountered:"
-    for error in "${ERRORS[@]}"; do
-      echo "  - $error"
-    done
-  fi
-  echo ""
-  echo "Installation log saved to: $INSTALL_LOG"
-} >> "$INSTALL_LOG"
+# Save final log (this will be handled by save_log_on_exit which is trapped)
 
 # Handle installation results with unified styling
 if [ ${#ERRORS[@]} -eq 0 ]; then
   ui_success "All steps completed successfully"
   # Clean up everything if installation was successful
-  cleanup_on_exit
+  cleanup_on_exit # This will remove .log and .conf, and gum/figlet packages. It will NOT remove .state
 
   # Delete the cachyinstaller folder itself
   log_info "Deleting cachyinstaller directory: $SCRIPT_DIR"
   sudo rm -rf "$SCRIPT_DIR" &>/dev/null || log_error "Failed to delete installer directory: $SCRIPT_DIR"
+  log_success "Removed installation directory: $SCRIPT_DIR"
+
+  # Ensure figlet is installed for the banner (should already be there from initial check)
+  if ! command -v figlet >/dev/null 2>&1; then
+    sudo pacman -S --noconfirm figlet >/dev/null 2>&1 || true
+  fi
+
+  # Display reboot banner and prompt
+  ui_info "\n${CYAN}$(figlet \"Reboot System\")${RESET}"
+
+  read -p "Would you like to reboot now? [Y/n]: " response
+  response=${response:-Y} # Default to Y if response is empty
+  response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$response" == "y" || "$response" == "yes" ]]; then
+      ui_info "\n${GREEN}Rebooting system...${RESET}"
+      sleep 2
+      sudo reboot
+  else
+      log_info "Reboot skipped by user."
+  fi
+
 else
   ui_warn "Some errors occurred during installation:"
   if command -v gum >/dev/null 2>&1; then
@@ -437,49 +468,12 @@ else
   fi
   ui_info "Most errors are non-critical and your system should still work."
   ui_info "Installation log saved to: $INSTALL_LOG"
-  ui_info "State file saved to: $STATE_FILE"
+  ui_info "State file saved to: $STATE_FILE" # Ensure this message remains even if state file is not deleted by cleanup
   ui_info "You can run the installer again to resume from the last successful step."
 fi
 
-# Cleanup non-essential UI tools and show final summary
-if command -v gum >/dev/null 2>&1; then
-  print_summary
-  ui_info "Cleaning up temporary UI tools..."
-  # Only remove gum if it was installed by the script, not if it was already present
-  if ! command -v gum &>/dev/null; then # This check is flawed; we need to know if *we* installed it. For now, assuming direct uninstall is fine after its use.
-      sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
-  fi
-fi
-
-# Save current shell for restoration after reboot
-CURRENT_SHELL=$SHELL
-export CURRENT_SHELL
-
-# Handle reboot
-if [ ${#ERRORS[@]} -eq 0 ]; then
-  # Install figlet if not present
-  if ! command -v figlet >/dev/null 2>&1; then
-    sudo pacman -S --noconfirm figlet >/dev/null 2>&1
-  fi
-
-  echo -e "\n${CYAN}"
-  figlet "Reboot System"
-  echo -e "${RESET}"
-
-  # Unified reboot prompt: default to 'yes'
-  read -p "Would you like to reboot now? [Y/n]: " response
-  response=${response:-Y} # Default to Y if response is empty
-  response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
-  if [[ "$response" == "y" || "$response" == "yes" ]]; then
-      echo -e "\n${GREEN}Rebooting system...${RESET}"
-      sleep 2
-      sudo reboot
-  else
-      log_info "Reboot skipped by user."
-  fi
-fi
-
-# Return to original shell if not rebooting (this block is after potential reboot, so it will only run if no reboot occurred)
+# This block is after potential reboot, so it will only run if no reboot occurred,
+# or if the script was re-executed from fish and we need to return to fish.
 if [ -n "${FISH_VERSION:-}" ] && [ "$SHELL" = "$(command -v fish)" ]; then
     exec fish
 fi

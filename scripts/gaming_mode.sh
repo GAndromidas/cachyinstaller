@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -uo pipefail
 
 # Gaming setup for CachyOS - Always enabled as it's a gaming distro
@@ -82,6 +82,43 @@ detect_and_install_gpu_drivers() {
   esac
 }
 
+# Function to install individual gaming packages as a fallback when cachyos-gaming-meta is not available
+_install_fallback_gaming_apps() {
+    # Install individual gaming utilities (discord, lutris, obs-studio)
+    step "Installing individual gaming utilities"
+    local individual_gaming_packages=()
+
+    if ! pacman -Q discord &>/dev/null; then
+        individual_gaming_packages+=("discord")
+    else
+        log_info "Discord already installed, skipping individual installation."
+    fi
+    if ! pacman -Q lutris &>/dev/null; then
+        individual_gaming_packages+=("lutris")
+    else
+        log_info "Lutris already installed, skipping individual installation."
+    fi
+    if ! pacman -Q obs-studio &>/dev/null; then
+        individual_gaming_packages+=("obs-studio")
+    else
+        log_info "OBS Studio already installed, skipping individual installation."
+    fi
+
+    if [ ${#individual_gaming_packages[@]} -gt 0 ]; then
+        install_packages_quietly "${individual_gaming_packages[@]}"
+    else
+        log_info "All individual gaming utilities already installed or not needed."
+    fi
+
+    # Install Steam if it's not already installed (excluding steam-native-runtime due to previous errors)
+    step "Installing Steam"
+    if ! pacman -Q steam &>/dev/null; then
+        install_packages_quietly "steam"
+    else
+        log_info "Steam already installed, skipping individual installation."
+    fi
+}
+
 # Install CachyOS gaming meta package (includes Steam, MangoHud, GameMode, etc.)
 step "Installing CachyOS gaming meta package"
 META_GAMING_INSTALLED=false
@@ -137,39 +174,8 @@ else
     # Install GPU-specific drivers
     detect_and_install_gpu_drivers
 
-    # Install individual gaming utilities (discord, lutris, obs-studio)
-    step "Installing individual gaming utilities"
-    local individual_gaming_packages=()
-
-    if ! pacman -Q discord &>/dev/null; then
-        individual_gaming_packages+=("discord")
-    else
-        log_info "Discord already installed, skipping individual installation."
-    fi
-    if ! pacman -Q lutris &>/dev/null; then
-        individual_gaming_packages+=("lutris")
-    else
-        log_info "Lutris already installed, skipping individual installation."
-    fi
-    if ! pacman -Q obs-studio &>/dev/null; then
-        individual_gaming_packages+=("obs-studio")
-    else
-        log_info "OBS Studio already installed, skipping individual installation."
-    fi
-
-    if [ ${#individual_gaming_packages[@]} -gt 0 ]; then
-        install_packages_quietly "${individual_gaming_packages[@]}"
-    else
-        log_info "All individual gaming utilities already installed or not needed."
-    fi
-
-    # Install Steam if it's not already installed (excluding steam-native-runtime)
-    step "Installing Steam"
-    if ! pacman -Q steam &>/dev/null; then
-        install_packages_quietly "steam"
-    else
-        log_info "Steam already installed, skipping individual installation."
-    fi
+    # Call the fallback function if cachyos-gaming-meta is not available
+    _install_fallback_gaming_apps
 fi
 
 # Install ProtonCachyOS for enhanced Steam compatibility

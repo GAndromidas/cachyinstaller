@@ -75,11 +75,11 @@ setup_fish() {
     log_success "Installed Starship configuration"
   fi
 
-  # Install Fastfetch configuration
+  # Install Fastfetch configuration silently
   setup_fastfetch
 
   # Install Fisher (plugin manager) if not present
-  if ! fish -c "functions -q fisher" 2>/dev/null; then
+  if ! fish -c "functions -q fisher" &>/dev/null; then
     log_info "Installing Fisher plugin manager"
     curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | fish -c "source && fisher install jorgebucaran/fisher" &>/dev/null
     if [ $? -eq 0 ]; then
@@ -146,7 +146,7 @@ setup_fastfetch() {
     chmod 644 "$HOME/.config/fastfetch/config.jsonc"
 
     # Test the new configuration silently
-    if command -v fastfetch >/dev/null 2>&1; then
+    if command -v fastfetch &>/dev/null; then
       if fastfetch --config "$HOME/.config/fastfetch/config.jsonc" --dry-run &>/dev/null; then
         log_success "Fastfetch configuration installed and verified"
       else
@@ -177,7 +177,7 @@ verify_installations() {
   fi
 
   # Test Fastfetch silently
-  if command -v fastfetch >/dev/null 2>&1; then
+  if command -v fastfetch &>/dev/null; then
     if ! fastfetch --config "$HOME/.config/fastfetch/config.jsonc" --dry-run &>/dev/null; then
       log_warning "Fastfetch configuration test failed"
       all_good=false

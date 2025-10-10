@@ -203,23 +203,23 @@ fi
 # Prompt for sudo using UI helpers
 if [ "$DRY_RUN" = false ]; then
   ui_info "Please enter your sudo password to begin the installation:"
-  sudo -v || { ui_error \"Sudo authentication failed. Exiting.\"; exit 1; }\
+  sudo -v || { ui_error "Sudo authentication failed. Exiting."; exit 1; }
 else
-  ui_info \"Dry-run mode: Skipping sudo authentication.\"\
+  ui_info "Dry-run mode: Skipping sudo authentication."
 fi
-\
-# Keep sudo timestamp alive (skip in dry-run mode)\
-if [ \"$DRY_RUN\" = false ]; then
-  ui_info \"Keeping sudo session alive...\"\
-  # In a subshell, periodically update the sudo timestamp.\
-  # `sudo -v` extends the sudo timeout without running a command.\
+
+# Keep sudo timestamp alive (skip in dry-run mode)
+if [ "$DRY_RUN" = false ]; then
+  ui_info "Keeping sudo session alive..."
+  # In a subshell, periodically update the sudo timestamp.
+  # `sudo -v` extends the sudo timeout without running a command.
   (while true; do sudo -v; sleep 60; done) &
-  SUDO_KEEPALIVE_PID=$!\
-  # Ensure the background sudo keep-alive process is killed on script exit.\
-  trap \'kill \"$SUDO_KEEPALIVE_PID\" 2>/dev/null; save_log_on_exit\' EXIT INT TERM\
+  SUDO_KEEPALIVE_PID=$!
+  # Ensure the background sudo keep-alive process is killed on script exit.
+  trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null; save_log_on_exit' EXIT INT TERM
 else
-  # In dry-run mode, we still need the exit trap for logging.\
-  trap \'save_log_on_exit\' EXIT INT TERM\
+  # In dry-run mode, we still need the exit trap for logging.
+  trap 'save_log_on_exit' EXIT INT TERM
 fi
 
 # State tracking for error recovery

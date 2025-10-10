@@ -3,19 +3,18 @@ set -uo pipefail
 
 # CachyOS Fail2ban Setup - Security protection for SSH
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
+# common.sh is sourced by install.sh, no need to source again here.
 
 install_and_configure_fail2ban() {
   step "Installing and configuring Fail2ban"
 
   # Install fail2ban if not already installed
   if ! pacman -Q fail2ban &>/dev/null; then
-    log_info "Installing fail2ban..."
-    if sudo pacman -S --noconfirm fail2ban; then
-      log_success "Fail2ban installed"
-      INSTALLED_PACKAGES+=("fail2ban")
+    log_info "Ensuring fail2ban is installed..."
+    if install_package "fail2ban"; then
+      log_success "Fail2ban installed."
     else
-      log_error "Failed to install fail2ban"
+      log_error "Failed to install fail2ban. Fail2ban setup aborted."
       return 1
     fi
   else
@@ -25,18 +24,23 @@ install_and_configure_fail2ban() {
   # Configure jail.local if it doesn't exist
   local jail_local="/etc/fail2ban/jail.local"
   if [[ ! -f "$jail_local" ]]; then
-    log_info "Creating fail2ban configuration..."
+    log_info "Creating and configuring fail2ban jail.local..."
 
-    # Copy default config and apply CachyOS optimizations
-    sudo cp /etc/fail2ban/jail.conf "$jail_local"
+    {
+      echo "[DEFAULT]"
+      echo "backend = systemd"
+      echo "bantime = 1h"
+      echo "maxretry = 3"
+      echo "findtime = 10m" # Keeping default for clarity, though it's the same
+      echo ""
+      echo "[sshd]"
+      echo "enabled = true"
+      echo "port    = ssh"
+      echo "logpath = %(sshd_log)s"
+      echo "backend = %(sshd_backend)s"
+    } | sudo tee "$jail_local" >/dev/null
 
-    # Apply security-focused settings
-    sudo sed -i 's/^backend = auto/backend = systemd/' "$jail_local"
-    sudo sed -i 's/^bantime  = 10m/bantime = 1h/' "$jail_local"
-    sudo sed -i 's/^maxretry = 5/maxretry = 3/' "$jail_local"
-    sudo sed -i 's/^findtime  = 10m/findtime = 10m/' "$jail_local"
-
-    log_success "Fail2ban configuration created"
+    log_success "Fail2ban configuration created: $jail_local"
   else
     log_info "Fail2ban already configured"
   fi

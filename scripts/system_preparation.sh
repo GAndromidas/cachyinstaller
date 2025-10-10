@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# Get script directory and source common functions
+# Get script directory (common.sh is sourced by install.sh)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/common.sh"
 
 # Constants
 BACKUP_DIR="$HOME/.cache/cachyinstaller/backups"
@@ -38,66 +37,47 @@ measure_download_speed() {
         # Try curl first
         if command -v curl >/dev/null 2>&1; then
             speed=$(curl -L --max-time 10 --output /dev/null --silent --write-out "%{speed_download}" "$test_file" 2>/dev/null)
-            speed=$((${speed%.*} / 131072)) # Convert to Mbps
-        fi
-
-        # If curl failed or speed is 0, try wget
-        if [ "$speed" -eq 0 ] && command -v wget >/dev/null 2>&1; then
-            local start_time=$(date +%s)
-            if wget -O /dev/null "$fallback_file" 2>&1 | grep -q "MB/s"; then
-                local end_time=$(date +%s)
-                local duration=$((end_time - start_time))
-                # Avoid division by zero
-                if [ "$duration" -eq 0 ]; then
-                    speed=0
-                else
-                    speed=$((5 / duration * 8)) # Assuming ~5MB file size
-                fi
+            # Convert bytes/second to Mbps (megabits/second) using integer division
+            # (bytes_per_sec * 8) / 1,000,000
+            speed_mbps=$(( (${speed%.*} * 8) / 1000000 ))
+            # Ensure it's at least 1 Mbps if a positive download rate was detected
+            if [ "$speed_mbps" -eq 0 ] && [ "${speed%.*}" -gt 0 ]; then
+                speed_mbps=1
             fi
+        else
+            log_warning "curl not found for speed measurement. Skipping curl attempts."
+            break # No point in retrying if curl isn't there
         fi
 
-        # If still no valid speed, try ping
-        if [ "$speed" -eq 0 ]; then
-            local ping_time=$(ping -c 1 archlinux.org 2>/dev/null | grep "time=" | cut -d "=" -f 4 | cut -d " " -f 1)
-            if [ -n "$ping_time" ]; then
-                if [ "${ping_time%.*}" -lt 50 ]; then
-                    speed=50
-                elif [ "${ping_time%.*}" -lt 100 ]; then
-                    speed=20
-                else
-                    speed=5
-                fi
-            fi
-        fi
-
-        [ "$speed" -gt 0 ] && break
-        sleep 1
+        [ "$speed_mbps" -gt 0 ] && break
+        sleep 2 # Delay between attempts
     done
 
-    # Use conservative default if all attempts failed
-    if [ "$speed" -eq 0 ]; then
-        speed=10
-        log_warning "Could not measure network speed, using conservative default of ${speed}Mbps"
-    else
-        log_success "Measured network speed: ${speed}Mbps"
+    # If curl failed, try a very basic fallback with wget to confirm connectivity and assign a default speed.
+    # Wget is harder to get a precise speed from its direct output using only shell arithmetic.
+    if [ "$speed_mbps" -eq 0 ] && command -v wget >/dev/null 2>&1; then
+        log_info "curl failed to measure network speed. Attempting basic connectivity check with wget."
+        # Use a silent spider test to confirm network access
+        if wget -q --spider --timeout=10 "$test_file" >/dev/null 2>&1; then
+            log_info "wget connectivity confirmed. Assigning a medium network speed estimate."
+            speed_mbps=50 # Assume a reasonable medium speed if connectivity is confirmed
+        else
+            log_error "wget also failed to establish connectivity to $test_file."
+        fi
     fi
 
-    echo "$speed"
-}
-
-# Function to update mirrorlist using rate-mirrors
-update_mirrors() {
-    step "Updating mirrorlist with rate-mirrors"
-
-    log_info "Running rate-mirrors to find fastest mirrors silently..."
-    if sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch &>/dev/null; then
-        sudo pacman -Syy &>/dev/null # Suppress output of pacman -Syy
-        log_success "Mirrorlist updated successfully"
+    # Use conservative default if all attempts failed or speed is very low
+    if [ "$speed_mbps" -eq 0 ]; then
+        speed_mbps=10 # Fallback to a safe default
+        log_warning "Could not accurately measure network speed after all attempts. Using a conservative default of ${speed_mbps}Mbps."
     else
-        log_error "Failed to update mirrorlist with rate-mirrors"
-        return 1
+        log_success "Measured network speed: ${speed_mbps}Mbps"
     fi
+
+    echo "$speed_mbps"
 }
+
+
 
 # Function to optimize pacman configuration
 optimize_pacman() {
@@ -245,12 +225,12 @@ main() {
     local start_time=$(date +%s)
 
     # Display header
-    figlet_banner "System Preparation" || log_info "=== System Preparation ==="
+    figlet_banner "System Preparation" || ui_info "System Preparation"
 
     # Check network speed and optimize package managers
     local network_speed=$(measure_download_speed)
 
-    # Update mirrors using rate-mirrors
+    # Update mirrors using rate-mirrors (using the function from common.sh)
     update_mirrors
 
     # Optimize package managers based on network speed
@@ -260,11 +240,8 @@ main() {
     # Setup system enhancements
     setup_system_enhancements
 
-    # Calculate and log execution time
-    local end_time=$(date +%s)
-    local duration=$((end_time - start_time))
-
-    log_success "System preparation completed in ${duration} seconds"
+    # Log overall performance using the common function
+    log_performance "System preparation"
 
     return 0
 }

@@ -5,7 +5,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
-source "$SCRIPT_DIR/common.sh"
+# common.sh is sourced by install.sh, no need to source again here.
 
 # CachyOS Gaming Mode - Always install gaming packages
 step "Gaming Mode Setup"
@@ -16,24 +16,22 @@ log_info "Gaming packages: Always installed"
 log_info "==========================="
 
 # Show Gaming Mode banner
-figlet_banner "Gaming Mode"
+figlet_banner "Gaming Mode" || ui_info "Gaming Mode"
 
 # Detect GPU type for proper driver installation
-detect_gpu_type() {
-  local gpu_type="unknown"
+detect_graphics_card() {
+  local graphics_card_vendor="unknown"
 
   # Check for NVIDIA GPU
-  if lspci | grep -i nvidia >/dev/null 2>&1; then
-    gpu_type="nvidia"
-  # Check for AMD GPU
-  elif lspci | grep -i "amd\\|radeon" >/dev/null 2>&1; then
-    gpu_type="amd"
-  # Check for Intel GPU
-  elif lspci | grep -i intel.*graphics >/dev/null 2>&1; then
-    gpu_type="intel"
+  if lspci -k | grep -iqE \"VGA|3D|Display controller\" && lspci -k | grep -iq \"NVIDIA\"; then
+    graphics_card_vendor=\"nvidia\"
+  elif lspci -k | grep -iqE \"VGA|3D|Display controller\" && lspci -k | grep -iq \"AMD\"; then
+    graphics_card_vendor=\"amd\"
+  elif lspci -k | grep -iqE \"VGA|3D|Display controller\" && lspci -k | grep -iq \"Intel\"; then
+    graphics_card_vendor=\"intel\"
   fi
 
-  echo "$gpu_type"
+  echo "$graphics_card_vendor"
 }
 
 # CachyOS is a gaming distro - always install gaming packages in both modes
@@ -49,11 +47,11 @@ fi
 
 # Detect and install GPU-specific drivers
 detect_and_install_gpu_drivers() {
-  local gpu_type=$(detect_gpu_type)
+  local graphics_card_vendor=$(detect_graphics_card)
   local skip_mesa_install=$1 # New parameter to skip mesa if cachyos-gaming-meta handles it
-  log_info "Detected GPU type: $gpu_type"
+  log_info "Detected graphics card vendor: $graphics_card_vendor"
 
-  case "$gpu_type" in
+  case "$graphics_card_vendor" in
     nvidia)
       log_info "Installing NVIDIA gaming drivers..."
       local nvidia_packages=("lib32-nvidia-utils" "nvidia-utils")
@@ -125,9 +123,9 @@ _install_fallback_gaming_apps() {
 # Install CachyOS gaming meta package (includes Steam, MangoHud, GameMode, etc.)
 step "Installing CachyOS gaming meta package"
 META_GAMING_INSTALLED=false
-if sudo pacman -S --noconfirm --needed cachyos-gaming-meta 2>/dev/null; then
+if install_package "cachyos-gaming-meta"; then
     log_success "CachyOS gaming meta package installed (includes Steam, Wine, MangoHud, GameMode, Lutris, Gamescope, Goverlay)"
-    INSTALLED_PACKAGES+=("cachyos-gaming-meta")
+
     META_GAMING_INSTALLED=true
 
     # Install GPU-specific drivers (Mesa is assumed to be handled by cachyos-gaming-meta)

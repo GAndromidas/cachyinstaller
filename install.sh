@@ -1,4 +1,4 @@
-```#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -uo pipefail
 
 # Configuration files
@@ -87,10 +87,7 @@ Started: $(date)
 "
 } > "$INSTALL_LOG"
 
-# Function to log to both console and file
-log_both() {
-  echo "$1" | tee -a "$INSTALL_LOG"
-}
+
 
 START_TIME=$(date +%s)
 
@@ -128,9 +125,9 @@ show_cachy_banner() {
     echo ""
     echo -e "${BOLD}${CYAN}   ____           _           ___           _        _ _           "
     echo -e "  / ___|__ _  ___| |__  _   _|_ _|_ __  ___| |_ __ _| | | ___ _ __ "
-    echo -e " | |   / _\` |/ __| \\'_ \\| | | || || \\'_ \\/ __| __/ _\` | | |/ _ \\ \\'__|"
-    echo -e " | |__| (_| | (__| | | | |_| || || | | \\__ \\ || (_| | | |  __/ |   "
-    echo -e "  \\\\____\\\\__,_|\\\\___|_| |_|\\\\__, |___|_| |_|___/\\\\__\\\\__,_|_|_|\\\\___|_|   "
+    echo -e " | |   / _\` |/ __| \'_ \| | | || || \'_ \/ __| __/ _\` | | |/ _ \ \'_|"
+    echo -e " | |__| (_| | (__| | | | |_| || || | | \__ \ || (_| | | |  __/ |   "
+    echo -e "  \\____\\__,_|\\___|_| |_|\\__, |___|_| |_|___/\__\\__,_|_|_|\___|_|   "
     echo -e "                        |___/${RESET}"
     echo ""
 }
@@ -138,12 +135,12 @@ show_cachy_banner() {
 # Silently install gum and figlet for UI and banners before menu
 # Ensure pacman syncs first to avoid 'package not found' issues
 ui_info "Checking for UI helpers (gum, figlet)..."
-sudo pacman -Sy --noconfirm >/dev/null 2>&1 || log_error "Failed to sync pacman databases for UI helpers."
+sudo pacman -Sy --noconfirm >/dev/null 2>&1 || log_error "Failed to synchronize pacman databases. This might affect the installation of UI helpers (gum, figlet). Please check your internet connection and try again."
 if ! command -v gum >/dev/null 2>&1; then
-  sudo pacman -S --noconfirm gum >/dev/null 2>&1 || log_error "Failed to install 'gum'. Proceeding without enhanced UI."
+  sudo pacman -S --noconfirm gum >/dev/null 2>&1 || log_error "Failed to install 'gum', a required UI helper. The installer will proceed with a basic interface. Please ensure your internet connection is stable and try installing 'gum' manually if issues persist."
 fi
 if ! command -v figlet >/dev/null 2>&1; then
-  sudo pacman -S --noconfirm figlet >/dev/null 2>&1 || log_error "Failed to install 'figlet'. Reboot banner may be plain text."
+  sudo pacman -S --noconfirm figlet >/dev/null 2>&1 || log_error "Failed to install 'figlet', a UI helper for banners. Reboot messages will be displayed in plain text. Please ensure your internet connection is stable and try installing 'figlet' manually if issues persist."
 fi
 
 # Clear screen and show banner
@@ -206,18 +203,23 @@ fi
 # Prompt for sudo using UI helpers
 if [ "$DRY_RUN" = false ]; then
   ui_info "Please enter your sudo password to begin the installation:"
-  sudo -v || { ui_error "Sudo required. Exiting."; exit 1; }
+  sudo -v || { ui_error \"Sudo authentication failed. Exiting.\"; exit 1; }\
 else
-  ui_info "Dry-run mode: Skipping sudo authentication"
+  ui_info \"Dry-run mode: Skipping sudo authentication.\"\
 fi
-
-# Keep sudo alive (skip in dry-run mode)
-if [ "$DRY_RUN" = false ]; then
-  while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
-  SUDO_KEEPALIVE_PID=$!
-  trap 'kill $SUDO_KEEPALIVE_PID 2>/dev/null; save_log_on_exit' EXIT INT TERM
+\
+# Keep sudo timestamp alive (skip in dry-run mode)\
+if [ \"$DRY_RUN\" = false ]; then
+  ui_info \"Keeping sudo session alive...\"\
+  # In a subshell, periodically update the sudo timestamp.\
+  # `sudo -v` extends the sudo timeout without running a command.\
+  (while true; do sudo -v; sleep 60; done) &
+  SUDO_KEEPALIVE_PID=$!\
+  # Ensure the background sudo keep-alive process is killed on script exit.\
+  trap \'kill \"$SUDO_KEEPALIVE_PID\" 2>/dev/null; save_log_on_exit\' EXIT INT TERM\
 else
-  trap 'save_log_on_exit' EXIT INT TERM
+  # In dry-run mode, we still need the exit trap for logging.\
+  trap \'save_log_on_exit\' EXIT INT TERM\
 fi
 
 # State tracking for error recovery
@@ -266,16 +268,6 @@ get_step_completion_time() {
   if [ -f "$STATE_FILE" ]; then
     grep "^${step_name}|" "$STATE_FILE" | cut -d'|' -f2
   fi
-}
-
-# Function to save log on exit
-save_log_on_exit() {
-  {
-    echo ""
-    echo "=========================================="
-    echo "Installation ended: $(date)"
-    echo "=========================================="
-  } >> "$INSTALL_LOG"
 }
 
 # Installation start header
@@ -349,7 +341,7 @@ fi
 # Step 5: Fail2ban Setup
 if ! is_step_complete "fail2ban_setup"; then
   print_step_header 5 "$TOTAL_STEPS" "Fail2ban Setup"
-  ui_info "Setting up security protection with Fail2ban..."
+  ui_info "Setting up security protection with Fail2ban..."\
   if step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh"; then
     mark_step_complete "fail2ban_setup"
     ui_success "Step 5 completed"
@@ -395,7 +387,7 @@ fi
 if [ "$DRY_RUN" = true ]; then
   print_header "Dry-Run Preview Completed"
   echo ""
-  echo -e "${YELLOW}This was a preview run. No changes were made to your system.${RESET}"
+  echo -e "${YELLOW}This was a preview run. No changes will be made to your system.${RESET}"
   echo ""
   echo -e "${CYAN}To perform the actual installation, run:${RESET}"
   echo -e "${GREEN}  ./install.sh${RESET}"
@@ -422,24 +414,8 @@ fi
 print_summary # Assuming this is in common.sh
 log_performance "Total installation time"
 
-# Save final log
-{
-  echo ""
-  echo "=========================================="
-  echo "Installation Summary"
-  echo "=========================================="
-  echo "Completed steps:"
-  [ -f "$STATE_FILE" ] && cat "$STATE_FILE" | sed 's/^/  - /'
-  echo ""
-  if [ ${#ERRORS[@]} -gt 0 ]; then
-    echo "Errors encountered:"
-    for error in "${ERRORS[@]}"; do
-      echo "  - $error"
-    done
-  fi
-  echo ""
-  echo "Installation log saved to: $INSTALL_LOG"
-} >> "$INSTALL_LOG"
+# Save final log (now handled by common.sh's save_log_on_exit via trap)
+# The trap is set earlier in the script, ensuring this is called.
 
 # Handle installation results with unified styling
 if [ ${#ERRORS[@]} -eq 0 ]; then

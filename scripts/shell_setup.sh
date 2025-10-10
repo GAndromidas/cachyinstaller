@@ -6,17 +6,7 @@ trap 'exit_handler $?' EXIT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
-source "$SCRIPT_DIR/common.sh"
-
-# Handle script exit
-exit_handler() {
-    local exit_code=$1
-    # Return to fish shell if we came from it
-    if [[ -n "${FISH_VERSION:-}" ]] && [[ "$exit_code" -eq 0 ]]; then
-        exec fish
-    fi
-    exit "$exit_code"
-}
+# common.sh is sourced by install.sh, no need to source again here.
 
 setup_fish() {
   step "Setting up enhanced Fish shell configuration"
@@ -90,36 +80,62 @@ setup_fish() {
   fi
 
   # Install essential Fish plugins
-  log_info "Installing Fish plugins"
-  fish -c "fisher install jorgebucaran/autopair.fish" &>/dev/null
-  fish -c "fisher install franciscolourenco/done" &>/dev/null
-  fish -c "fisher install PatrickF1/fzf.fish" &>/dev/null
-  fish -c "fisher install meaningful-ooo/sponge" &>/dev/null
-  log_success "Installed Fish plugins"
+  log_info "Installing Fish plugins..."
+
+  if fish -c "fisher install jorgebucaran/autopair.fish" &>/dev/null; then
+    log_success "Installed Fisher plugin: autopair.fish"
+  else
+    log_warning "Failed to install Fisher plugin: autopair.fish. Continuing..."
+  fi
+
+  if fish -c "fisher install franciscolourenco/done" &>/dev/null; then
+    log_success "Installed Fisher plugin: done"
+  else
+    log_warning "Failed to install Fisher plugin: done. Continuing..."
+  fi
+
+  if fish -c "fisher install PatrickF1/fzf.fish" &>/dev/null; then
+    log_success "Installed Fisher plugin: fzf.fish"
+  else
+    log_warning "Failed to install Fisher plugin: fzf.fish. Continuing..."
+  fi
+
+  if fish -c "fisher install meaningful-ooo/sponge" &>/dev/null; then
+    log_success "Installed Fisher plugin: sponge"
+  else
+    log_warning "Failed to install Fisher plugin: sponge. Continuing..."
+  fi
+  log_success "Finished attempting to install Fish plugins."
 
   # Verify configurations
   verify_installations
 
   # Final setup
-  log_info "Setting Fish as default shell (if not already)"
+  log_info "Setting Fish as default shell (if not already)..."
   local fish_path=$(command -v fish)
   if [[ -n "$fish_path" ]]; then
     if [[ "$SHELL" != "$fish_path" ]]; then
-      if grep -q "^$fish_path$" /etc/shells || sudo sh -c "echo $fish_path >> /etc/shells"; then
-        if sudo chsh -s "$fish_path" "$USER" 2>/dev/null; then
-          log_success "Fish is now your default shell"
-        else
-          log_error "Failed to set Fish as default shell"
-          log_info "You can do it manually with: chsh -s $fish_path"
+      # Ensure fish path is in /etc/shells before attempting to change default shell
+      if ! grep -q "^$fish_path$" /etc/shells; then
+        log_info "Adding Fish shell path ($fish_path) to /etc/shells..."
+        if ! sudo sh -c "echo $fish_path >> /etc/shells"; then
+          log_error "Failed to add Fish shell path to /etc/shells. Manual intervention might be required for 'chsh'."
+          return 1 # Critical failure if we can't add to /etc/shells
         fi
+        log_success "Fish shell path added to /etc/shells."
+      fi
+
+      if sudo chsh -s "$fish_path" "$USER" 2>/dev/null; then
+        log_success "Fish is now your default shell."
       else
-        log_error "Could not add Fish shell to /etc/shells"
+        log_error "Failed to set Fish as default shell for user $USER."
+        log_info "You can attempt to set it manually: 'chsh -s $fish_path'"
       fi
     else
-      log_info "Fish is already your default shell"
+      log_info "Fish is already your default shell."
     fi
   else
-    log_error "Fish shell not found in system"
+    log_error "Fish shell not found in system. Cannot set as default."
   fi
 
   log_success "Fish shell setup completed successfully"

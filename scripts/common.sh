@@ -45,61 +45,6 @@ install_packages_quietly() {
     return $failed
 }
 
-cleanup_on_exit() {
-log_performance "Total runtime"
-{
-    echo -e "\nFinal Status:"
-    echo "Packages installed: ${#INSTALLED_PACKAGES[@]}"
-    echo "Warnings: ${#WARNINGS[@]}"
-    echo "Errors: ${#ERRORS[@]}"
-    echo -e "\nInstallation ended: $(date)"
-} >> "$INSTALL_LOG"
-
-# Only clean up if installation was successful
-if [ ${#ERRORS[@]} -eq 0 ]; then
-    echo -e "\n${GREEN}Cleaning up installation files...${RESET}"
-
-    # Save current directory
-    local current_dir="$PWD"
-
-    # Change to home directory first
-    cd "$HOME"
-
-    # Remove installer files safely
-    if [ -f "$HOME/.cachyinstaller.log" ]; then
-        rm -f "$HOME/.cachyinstaller.log"
-    fi
-    if [ -f "$HOME/.cachyinstaller.state" ]; then
-        rm -f "$HOME/.cachyinstaller.state"
-    fi
-    if [ -f "$HOME/.cachyinstaller.conf" ]; then
-        rm -f "$HOME/.cachyinstaller.conf"
-    fi
-
-
-
-    # Remove temporary UI tools if they were installed by us
-    if command -v gum >/dev/null 2>&1; then
-        sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
-    fi
-    if command -v figlet >/dev/null 2>&1; then
-        sudo pacman -Rns --noconfirm figlet >/dev/null 2>&1 || true
-    fi
-
-    echo -e "${GREEN}Cleanup complete!${RESET}"
-
-    # No need to return to previous directory since we're about to reboot
-fi
-}
-
-cleanup_on_error() {
-    if [ ${#ERRORS[@]} -gt 0 ]; then
-        log_error "Installation failed with errors"
-        cleanup_on_exit
-        exit 1
-    fi
-}
-
 show_installation_summary() {
     echo -e "\n${CYAN}Installation Summary:${RESET}"
     echo -e "Packages installed: ${#INSTALLED_PACKAGES[@]}"
@@ -292,12 +237,29 @@ install_packages() {
     $success
 }
 
+# Function to update mirrorlist using rate-mirrors or reflector
+update_mirrors() {\n    step "Updating mirrorlist"\n\n    if command_exists rate-mirrors; then
+        sudo rate-mirrors --allow-root arch --save /etc/pacman.d/mirrorlist
+        sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
+        log_success "Mirrorlist updated successfully with rate-mirrors"\n    else
+        log_warning "rate-mirrors not found, using reflector instead"\n        if command_exists reflector; then
+            sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+            sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
+            log_success "Mirrorlist updated successfully with reflector"\n        else
+            log_error "Neither rate-mirrors nor reflector found for mirrorlist update"\n            return 1
+        fi\n    fi
+    return 0
+}
+
 # DE detection
 detect_desktop_environment() {
     if [ -n "$XDG_CURRENT_DESKTOP" ]; then
         echo "$XDG_CURRENT_DESKTOP"
     elif [ -n "$DESKTOP_SESSION" ]; then
-        echo "$DESKTOP_SESSION"
+        echo "$DESKTOP_SESSION"\n    elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "x11"; then
+        echo "X11" # Fallback for unknown X11 DEs
+    elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "wayland"; then
+        echo "WAYLAND" # Fallback for unknown Wayland DEs
     else
         echo "UNKNOWN"
     fi
@@ -305,26 +267,30 @@ detect_desktop_environment() {
 
 # Install helper utilities first
 install_helper_utils() {
+    local all_success=true
+    log_info "Installing core helper utilities..."
     for util in "${HELPER_UTILS[@]}"; do
-        echo -e "${BOLD}${BLUE}==>${RESET} Installing helper utility: ${util}"
-        if sudo pacman -S --noconfirm --needed "$util" >/dev/null 2>&1; then
-            echo -e "${BOLD}${GREEN}==>${RESET} Successfully installed helper utility: ${util}"
-            INSTALLED_PACKAGES+=("$util")
-        else
-            echo -e "${BOLD}${RED}==>${RESET} Failed to install helper utility: ${util}"
-            ERRORS+=("Failed to install $util")
+        if ! install_package "$util"; then
+            all_success=false
         fi
+        # A small delay for better console output readability, even for helpers
         sleep 0.1
     done
+    if [ "$all_success" = true ]; then
+        log_success "All core helper utilities installed."
+        return 0
+    else
+        log_error "Some core helper utilities failed to install. Check log for details."
+        return 1
+    fi
 }
 
 # Menu functions
 show_menu() {
     if command -v gum >/dev/null 2>&1; then
         # Show styled header with gum
-        gum style --border double --margin "1 2" --padding "1 4" --foreground 46 "CachyOS Gaming Installer"${RESET}
+        gum style --border double --margin "1 2" --padding "1 4" --foreground 51 "CachyOS Post-Installation Enhancement"${RESET}
         gum style --margin "1 0" --foreground 226 "Choose your installation mode:"${RESET}
-        echo ""
 
         # Installation mode selection using gum
         choice=$(gum choose \
@@ -403,11 +369,39 @@ save_log_on_exit() {
     } >> "$INSTALL_LOG"
 }
 
+# Function to prompt for reboot
+prompt_reboot() {
+  if [ "$DRY_RUN" = true ]; then
+    log_info "Dry-run mode: Skipping reboot prompt."
+    return 0
+  fi
+
+  ui_info "Installation complete. A reboot is recommended to apply all changes."
+  if command -v gum >/dev/null 2>&1; then
+    choice=$(gum choose "Reboot Now" "Reboot Later")
+    if [[ "$choice" == "Reboot Now" ]]; then
+      log_info "Rebooting system now..."
+      sudo reboot
+    else
+      log_info "Reboot postponed. Please reboot manually when convenient."
+    fi
+  else
+    read -p "$(echo -e "${CYAN}Installation complete. Reboot now? (y/N): ${RESET}")" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      log_info "Rebooting system now..."
+      sudo reboot
+    else
+      log_info "Reboot postponed. Please reboot manually when convenient."
+    fi
+  fi
+}
+
 # Export functions and variables
 export -f log_error log_warning log_success log_info figlet_banner
 export -f ui_info ui_success ui_error ui_warn
 export -f install_package install_packages package_installed install_helper_utils
 export -f print_step_header print_header step
-export -f detect_desktop_environment show_menu print_summary
+export -f detect_desktop_environment show_menu print_summary update_mirrors save_log_on_exit prompt_reboot
 export INSTALLED_PACKAGES ERRORS WARNINGS
 export RED GREEN YELLOW BLUE CYAN RESET

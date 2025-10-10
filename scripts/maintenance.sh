@@ -1,28 +1,5 @@
 #!/usr/bin/env bash
 
-# Import common functions if not already imported
-if [ -z "$SCRIPTS_DIR" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    source "$SCRIPT_DIR/scripts/common.sh"
-fi
-
-# Utility functions
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
-run_step() {
-    local description="$1"
-    shift
-    echo -e "\n>> $description..."
-    if "$@"; then
-        return 0
-    else
-        log_error "Failed to execute: $description"
-        return 1
-    fi
-}
-
 # Maintenance setup
 setup_maintenance() {
     step "Maintenance"
@@ -44,7 +21,7 @@ setup_maintenance() {
         sudo rm -rf /tmp/*
         log_success "Cleaned /tmp directory"
     else
-        log_warning "Skipping /tmp cleanup as it is a mounted filesystem"
+        log_info \"Skipping /tmp cleanup as it is a mounted filesystem (normal operation)\"
     fi
 }
 
@@ -55,17 +32,20 @@ cleanup_system() {
     # Clean package cache
     if command_exists paccache; then
         sudo paccache -rk1
-        log_success "Cleaned package cache"
+        log_success "Cleaned package cache."
     else
-        log_error "Failed to clean pacman cache"
+        log_warning "paccache not available or failed. Pacman cache not cleaned."
     fi
 
     # Clean paru cache if installed
     if command_exists paru; then
-        paru -Sc --noconfirm
-        log_success "Cleaned paru cache"
+        if paru -Sc --noconfirm &>/dev/null; then
+            log_success "Cleaned paru cache."
+        else
+            log_warning "Failed to clean paru cache. Check if there are unmerged updates."
+        fi
     else
-        log_warning "Failed to clean paru cache"
+        log_info "paru not installed, skipping AUR cache cleanup."
     fi
 
     # Clean flatpak if installed
@@ -80,37 +60,22 @@ cleanup_system() {
 # Remove development packages
 cleanup_helpers() {
     if pacman -Qi gendesk &>/dev/null; then
-        echo "The following packages will be removed:"
-        pacman -Qi gendesk | grep -E "^(Name|Description)" | sed 's/^/    /'
+        log_info "Attempting to remove development helper package: gendesk"
+        echo "    Description: Provides .desktop file generation for AUR packages."
+        echo "    This package is typically not needed after installation."
 
-        if sudo pacman -Rns gendesk --noconfirm; then
-            log_success "Removed helper packages"
+        if sudo pacman -Rns gendesk --noconfirm >/dev/null 2>&1; then
+            log_success "Removed gendesk helper package."
         else
-            log_error "Failed to remove some orphaned packages"
+            log_warning "Failed to remove gendesk. It might be a dependency for other packages or already removed."
         fi
+    else
+        log_info "gendesk not found, skipping removal."
     fi
 }
 
 # Update mirrorlist
-update_mirrors() {
-    step "Updating mirrorlist"
 
-    if command_exists rate-mirrors; then
-        sudo rate-mirrors --allow-root arch --save /etc/pacman.d/mirrorlist
-        sudo pacman -Sy
-        log_success "Mirrorlist updated successfully"
-    else
-        log_warning "rate-mirrors not found, using reflector instead"
-        if command_exists reflector; then
-            sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
-            sudo pacman -Sy
-            log_success "Mirrorlist updated successfully"
-        else
-            log_error "Neither rate-mirrors nor reflector found"
-            return 1
-        fi
-    fi
-}
 
 # Set up Btrfs snapshots
 setup_snapshots() {
@@ -131,16 +96,25 @@ setup_snapshots() {
     log_info "Configuring snapshot system services and monitoring..."
 
     # Enable services if they exist
+    log_info "Enabling snapshot-related system services..."
     if [ -f /usr/lib/systemd/system/grub-btrfsd.service ]; then
-        sudo systemctl enable --now grub-btrfsd.service
+        if sudo systemctl enable --now grub-btrfsd.service &>/dev/null; then
+            log_success "Enabled and started grub-btrfsd.service"
+        else
+            log_error "Failed to enable/start grub-btrfsd.service. GRUB snapshots may not be updated."
+        fi
     else
-        log_warning "Failed to enable grub-btrfsd.service"
+        log_info "grub-btrfsd.service not found. Skipping GRUB snapshot integration."
     fi
 
     if [ -f /usr/lib/systemd/system/btrfs-assistant-daemon.service ]; then
-        sudo systemctl enable --now btrfs-assistant-daemon.service
+        if sudo systemctl enable --now btrfs-assistant-daemon.service &>/dev/null; then
+            log_success "Enabled and started btrfs-assistant-daemon.service"
+        else
+            log_error "Failed to enable/start btrfs-assistant-daemon.service. Btrfs Assistant GUI may not function correctly."
+        fi
     else
-        log_warning "Failed to enable btrfs-assistant-daemon.service"
+        log_info "btrfs-assistant-daemon.service not found. Skipping Btrfs Assistant daemon."
     fi
 
     # Update boot configuration
@@ -166,57 +140,55 @@ setup_snapshots() {
             sudo pacman -Rns timeshift --noconfirm || log_warning "Could not remove Timeshift cleanly"
         fi
 
-        # Set up Snapper
-        setup_snapper
-    fi
-}
+        # Configure Snapper
+        log_info "Configuring Snapper for root filesystem..."
 
-# Configure Snapper
-setup_snapper() {
-    step "Installing snapshot management packages"
-    log_info "Installing: snapper, snap-pac, btrfs-assistant"
-    install_package snapper
-    install_package snap-pac
-    install_package btrfs-assistant
-
-    step "Configuring Snapper for root filesystem"
-    log_info "Creating new Snapper configuration..."
-
-    # Create initial Snapper config
-    if ! snapper list-configs 2>/dev/null | grep -q "root"; then
-        sudo snapper create-config /
-        sudo snapper set-config "NUMBER_CLEANUP=yes" "NUMBER_LIMIT=10" "TIMELINE_CLEANUP=yes" "TIMELINE_LIMIT_HOURLY=5" "TIMELINE_LIMIT_DAILY=7"
-    fi
-
-    # Set up bootloader configuration
-    log_info "Detected bootloader: $(detect_bootloader)"
-    configure_bootloader_snapshots
-
-    step "Enabling Snapper automatic snapshot timers"
-    sudo systemctl enable --now snapper-timeline.timer snapper-cleanup.timer
-    log_success "Snapper timers enabled and started"
-
-    # Create initial snapshot
-    step "Creating initial snapshot"
-    sudo snapper create --type single --cleanup-algorithm number --description "Initial snapshot after setup"
-    log_success "Initial snapshot created"
-
-    # Verify setup
-    step "Verifying Btrfs snapshot setup"
-    if snapper list-configs &>/dev/null; then
-        log_success "Snapper is working correctly"
-
-        if systemctl is-active snapper-timeline.timer >/dev/null 2>&1 && \
-           systemctl is-active snapper-cleanup.timer >/dev/null 2>&1; then
-            log_success "Snapper timers are active"
+        # Create initial Snapper config
+        if ! snapper list-configs 2>/dev/null | grep -q "root"; then
+            sudo snapper create-config /
+            sudo snapper set-config "NUMBER_CLEANUP=yes" "NUMBER_LIMIT=10" "TIMELINE_CLEANUP=yes" "TIMELINE_LIMIT_HOURLY=5" "TIMELINE_LIMIT_DAILY=7"
+            log_success "Snapper root configuration created and set."
+        else
+            log_info "Snapper configuration for root already exists."
         fi
 
-        log_info "Current snapshots:"
-        snapper list
+        # Set up bootloader configuration for snapshots
+        log_info "Configuring bootloader for snapshot integration (Detected: $(detect_bootloader))..."
+        configure_bootloader_snapshots
 
-        log_success "Btrfs snapshot setup completed successfully!"
+        log_info "Enabling Snapper automatic snapshot timers..."
+        if sudo systemctl enable --now snapper-timeline.timer snapper-cleanup.timer &>/dev/null; then
+            log_success "Snapper timers (timeline, cleanup) enabled and started."
+        else
+            log_error "Failed to enable Snapper timers. Automatic snapshots will not run."
+        fi
 
-        cat << EOF
+        # Create initial snapshot
+        log_info "Creating initial snapshot..."
+        if sudo snapper create --type single --cleanup-algorithm number --description "Initial snapshot after setup"; then
+            log_success "Initial snapshot created successfully."
+        else
+            log_error "Failed to create initial snapshot."
+        fi
+
+        # Verify setup
+        step "Verifying Btrfs snapshot setup"
+        if snapper list-configs &>/dev/null; then
+            log_success "Snapper is working correctly."
+
+            if systemctl is-active snapper-timeline.timer >/dev/null 2>&1 && \
+               systemctl is-active snapper-cleanup.timer >/dev/null 2>&1; then
+                log_success "Snapper timers are active."
+            else
+                log_warning "Snapper timers may not be active. Check systemctl status."
+            fi
+
+            log_info "Current snapshots:"
+            snapper list
+
+            log_success "Btrfs snapshot setup completed successfully!"
+
+            cat << EOF
 
 Snapshot system configured:
   • Automatic snapshots before/after package operations
@@ -231,11 +203,15 @@ How to use:
   • Snapshots stored in: /.snapshots/
 
 EOF
-    else
-        log_error "Snapper verification failed"
-        return 1
+        else
+            log_error "Snapper verification failed. Please check Snapper installation and configuration."
+            return 1
+        fi
     fi
 }
+
+# Configure Snapper
+
 
 # Configure bootloader for snapshots
 configure_bootloader_snapshots() {
@@ -313,11 +289,13 @@ main() {
     setup_snapshots || ((errors++))
 
     if [ $errors -gt 0 ] || [ $warnings -gt 0 ]; then
-        log_warning "Maintenance completed with warnings in steps: setup_maintenance cleanup_helpers setup_bootloader_snapshots"
-        log_info "Non-critical errors occurred but system should still be usable"
-        log_error "Maintenance failed"
+        log_warning "Maintenance completed with issues. Review the log for details."
+        if [ $errors -gt 0 ]; then
+            log_error "Some errors occurred during maintenance. Consider reviewing the log and re-running if critical."
+        fi
+        log_info "Non-critical issues might have occurred, but the system should still be functional."
     else
-        log_success "Maintenance completed successfully"
+        log_success "Maintenance completed successfully!"
     fi
 }
 

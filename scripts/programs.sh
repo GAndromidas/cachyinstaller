@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
 
-source "$SCRIPT_DIR/common.sh"
+# common.sh is sourced by install.sh, no need to source again here.
 
 # Global arrays for tracking
 PROGRAMS_ERRORS=()
@@ -16,10 +16,9 @@ PROGRAMS_REMOVED=()
 # ===== YAML Parsing Functions =====
 ensure_yq() {
   if ! command -v yq &>/dev/null; then
-    log_info "Installing yq for YAML parsing..."
-    sudo pacman -S --noconfirm yq
-    if ! command -v yq &>/dev/null; then
-      log_error "Failed to install yq. Please install manually: sudo pacman -S yq"
+    log_info "Ensuring yq (YAML processor) is installed..."
+    if ! install_package "yq"; then
+      log_error "Failed to install yq. This is a critical dependency for package management."
       return 1
     fi
   fi
@@ -107,25 +106,33 @@ check_flatpak() {
     return 1
   fi
   if ! flatpak remote-list | grep -q flathub; then
-    log_info "Adding Flathub remote"
-    flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    log_info "Adding Flathub remote..."
+    if flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo; then
+      log_success "Flathub remote added."
+    else
+      log_error "Failed to add Flathub remote. Flatpak installations may fail."
+      return 1
+    fi
   fi
-  log_info "Updating Flatpak remotes"
-  flatpak update -y
+  log_info "Updating Flathub remote..."
+  if flatpak update -y flathub; then
+    log_success "Flathub remote updated."
+  else
+    log_warning "Failed to update Flathub remote. Some Flatpak updates may not be available."
+  fi
 
   # Update desktop database for Flatpak integration
   if command -v update-desktop-database &>/dev/null; then
-    sudo update-desktop-database /usr/share/applications/ 2>/dev/null || true
+    log_info "Updating system-wide desktop database for application integration..."
+    sudo update-desktop-database 2>/dev/null || log_warning "Failed to update system-wide desktop database. Some applications might not appear correctly."
+
     if [[ -d "$HOME/.local/share/applications" ]]; then
-      update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+      log_info "Updating user-specific desktop database..."
+      update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || log_warning "Failed to update user-specific desktop database."
     fi
-    if [[ -d "/var/lib/flatpak/exports/share/applications" ]]; then
-      sudo update-desktop-database /var/lib/flatpak/exports/share/applications 2>/dev/null || true
-    fi
-    if [[ -d "$HOME/.local/share/flatpak/exports/share/applications" ]]; then
-      update-desktop-database "$HOME/.local/share/flatpak/exports/share/applications" 2>/dev/null || true
-    fi
-    log_success "Desktop database updated for Flatpak integration"
+    log_success "Desktop database update process completed."
+  else
+    log_warning "update-desktop-database command not found. Desktop entries for new applications might not be immediately available."
   fi
   return 0
 }
@@ -196,7 +203,8 @@ install_aur_quietly() {
   local to_install=()
 
   for pkg in "${pkgs[@]}"; do
-    pacman -Q "$pkg" &>/dev/null || to_install+=("$pkg")
+    # Check if AUR package is already installed via paru
+    paru -Q "$pkg" &>/dev/null || to_install+=("$pkg")
   done
 
   local total=${#to_install[@]}
@@ -208,13 +216,14 @@ install_aur_quietly() {
   log_info "Installing ${total} packages via AUR (paru): ${to_install[*]}"
   if paru -S --noconfirm --needed "${to_install[@]}"; then
     for pkg in "${to_install[@]}"; do
-      pacman -Q "$pkg" &>/dev/null && PROGRAMS_INSTALLED+=("$pkg (AUR)")
+      # Verify installation using paru
+      paru -Q "$pkg" &>/dev/null && PROGRAMS_INSTALLED+=("$pkg (AUR)")
     done
-    log_success "AUR batch installation completed"
+    log_success "AUR batch installation completed."
   else
-    log_error "Some AUR packages failed to install. Check log for details."
+    log_error "Some AUR packages failed to install. Check the log for details."
     for pkg in "${to_install[@]}"; do
-      if ! pacman -Q "$pkg" &>/dev/null; then
+      if ! paru -Q "$pkg" &>/dev/null; then
         PROGRAMS_ERRORS+=("Failed to install AUR $pkg")
       fi
     done
@@ -424,8 +433,8 @@ filter_packages_for_cachyos() {
       fi
     done
 
-    if ! $should_skip && pacman -Q "$package" &>/dev/null; then
-      log_info "Skipping AUR package $package - already configured by CachyOS"
+    if ! $should_skip && (pacman -Q "$package" &>/dev/null || (command -v paru &>/dev/null && paru -Q "$package" &>/dev/null)); then
+      log_info "Skipping AUR package $package - already installed by system or CachyOS configuration"
       should_skip=true
     fi
 
@@ -444,31 +453,40 @@ print_total_packages() {
   local aur_total=${#aur_programs[@]}
   local flatpak_total=0
 
-  if [[ "$INSTALL_MODE" == "default" ]]; then
-    case "$XDG_CURRENT_DESKTOP" in
-      KDE) flatpak_total=3 ;;
-      GNOME) flatpak_total=4 ;;
-      COSMIC) flatpak_total=4 ;;
-      *) flatpak_total=1 ;;
-    esac
-  else
-    case "$XDG_CURRENT_DESKTOP" in
-      KDE) flatpak_total=1 ;;
-      GNOME) flatpak_total=2 ;;
-      COSMIC) flatpak_total=2 ;;
-      *) flatpak_total=1 ;;
-    esac
+  local de_output
+  de_output=$(detect_desktop_environment) # From common.sh
+  local de_env
+  case "$de_output" in
+    KDE) de_env="kde" ;;
+    GNOME) de_env="gnome" ;;
+    COSMIC) de_env="cosmic" ;;
+    *) de_env="generic" ;; # Fallback for unknown/unsupported DEs
+  esac
+
+  local current_install_mode="${INSTALL_MODE:-default}" # Use default if INSTALL_MODE is not set
+
+  local temp_flatpak_packages=()
+
+  # Dynamically determine Flatpak package count based on DE and install mode
+  if [[ "$current_install_mode" == "default" ]]; then
+    get_flatpak_packages "$de_env" "default" temp_flatpak_packages
+  elif [[ "$current_install_mode" == "minimal" ]]; then
+    get_flatpak_packages "$de_env" "minimal" temp_flatpak_packages
   fi
+
+  flatpak_total=${#temp_flatpak_packages[@]}
 
   local total_packages=$((pacman_total + aur_total + flatpak_total))
   log_info "Total packages to install: $total_packages (Pacman: $pacman_total, AUR: $aur_total, Flatpak: $flatpak_total)"
 }
 
 # ===== MAIN LOGIC =====
-log_info "=== CACHYOS PROGRAMS INSTALLATION ==="
-log_info "INSTALL_MODE: ${INSTALL_MODE:-NOT_SET}"
-log_info "CachyOS: Native installation"
-log_info "Shell choice: ${CACHYOS_SHELL_CHOICE:-NOT_SET}"
+=======
+log_info "Starting CachyOS Programs Installation"
+log_info "Installation Mode: ${INSTALL_MODE:-Default (Not Set)}"
+log_info "Running on CachyOS: Native package management"
+# Shell choice is managed by shell_setup.sh, no need to log it here again unless directly relevant
+log_info "--------------------------------------"
 log_info "======================================"
 
 # Load packages based on install mode
@@ -507,12 +525,13 @@ if [[ "$INSTALL_MODE" == "default" ]]; then
   if [ -n "$flatpak_install_function" ]; then
     $flatpak_install_function
   else
-    log_warning "No Flatpak install function for your DE"
+    log_warning "No specific Flatpak 'default' install function found for your Desktop Environment (${XDG_CURRENT_DESKTOP:-Unknown DE}). Skipping default Flatpak installation."
   fi
 elif [[ "$INSTALL_MODE" == "minimal" ]]; then
   if [ -n "$flatpak_minimal_function" ]; then
     $flatpak_minimal_function
   else
+    log_warning "No specific Flatpak 'minimal' install function found for your Desktop Environment (${XDG_CURRENT_DESKTOP:-Unknown DE}). Falling back to generic minimal Flatpak installation."
     install_flatpak_minimal_generic
   fi
 fi

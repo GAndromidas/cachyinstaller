@@ -77,6 +77,9 @@ CONFIGS_DIR="$SCRIPT_DIR/configs"
 # Source common functions first for UI and logging utilities
 source "$SCRIPTS_DIR/common.sh"
 
+# Install helper utilities early (e.g., gum, figlet, flatpak)
+install_helper_utils
+
 # Initialize log file
 {
   echo "==========================================

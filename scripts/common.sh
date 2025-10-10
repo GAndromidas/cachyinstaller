@@ -204,23 +204,24 @@ install_package() {
         log_info "Installing $package..."
 
         while [ $i -le $retries ]; do
-            if sudo pacman -S --noconfirm --needed "$package" >/dev/null 2>&1; then
-                if pacman -Q "$package" >/dev/null 2>&1; then
+            local pacman_output=""
+            if pacman_output=$(sudo pacman -S --noconfirm --needed "$package" 2>&1); then
+                if pacman -Q "$package" &>/dev/null; then
                     INSTALLED_PACKAGES+=("$package")
                     log_success "Successfully installed $package"
                     return 0
                 else
-                    log_warning "Package $package install succeeded but verification failed"
+                    log_warning "Package $package install succeeded but verification failed. Pacman output: $pacman_output"
                 fi
             fi
 
             if [ $i -lt $retries ]; then
-                log_warning "Failed to install $package (attempt $i/$retries). Retrying in ${retry_delay}s..."
+                log_warning "Failed to install $package (attempt $i/$retries). Retrying in ${retry_delay}s... Pacman output: $pacman_output"
                 sleep $retry_delay
                 # Clear package manager locks if they exist
                 sudo rm -f /var/lib/pacman/db.lck
             else
-                log_error "Failed to install $package after $retries attempts"
+                log_error "Failed to install $package after $retries attempts. Pacman output: $pacman_output"
                 return 1
             fi
             ((i++))
@@ -251,7 +252,7 @@ update_mirrors() {
         sudo pacman -Syyu --noconfirm # Perform full sync and update
         log_success "Mirrorlist updated successfully with rate-mirrors"
     else
-        log_warning \"rate-mirrors not found, using reflector instead\"
+        log_warning "rate-mirrors not found, using reflector instead"
         if command_exists reflector; then
             sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
             log_info "Synchronizing pacman databases and updating system..."

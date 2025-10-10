@@ -103,7 +103,7 @@ log_info() {
 # UI helper functions
 ui_info() {
     if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 39 "ℹ $1"${RESET}
+        gum style --foreground 39 "ℹ $1"
     else
         echo -e "${BLUE}ℹ $1${RESET}"
     fi
@@ -111,7 +111,7 @@ ui_info() {
 
 ui_success() {
     if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 82 "✓ $1"${RESET}
+        gum style --foreground 82 "✓ $1"
     else
         echo -e "${GREEN}✓ $1${RESET}"
     fi
@@ -119,7 +119,7 @@ ui_success() {
 
 ui_error() {
     if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 196 "✗ $1"${RESET}
+        gum style --foreground 196 "✗ $1"
     else
         echo -e "${RED}✗ $1${RESET}"
     fi
@@ -127,7 +127,7 @@ ui_error() {
 
 ui_warn() {
     if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 178 "⚠ $1"${RESET}
+        gum style --foreground 178 "⚠ $1"
     else
         echo -e "${YELLOW}⚠ $1${RESET}"
     fi
@@ -304,8 +304,8 @@ install_helper_utils() {
 show_menu() {
     if command -v gum >/dev/null 2>&1; then
         # Show styled header with gum
-        gum style --border double --margin "1 2" --padding "1 4" --foreground 51 "CachyOS Post-Installation Enhancement"${RESET}
-        gum style --margin "1 0" --foreground 226 "Choose your installation mode:"${RESET}
+        gum style --border double --margin "1 2" --padding "1 4" --foreground 51 "CachyOS Post-Installation Enhancement"
+        gum style --margin "1 0" --foreground 226 "Choose your installation mode:"
 
         # Installation mode selection using gum
         choice=$(gum choose \
@@ -321,14 +321,14 @@ show_menu() {
         case "$choice" in
             "Default"*)
                 export INSTALL_MODE="default"
-                gum style --foreground 51 "✓ Selected: Default installation"${RESET}
+                gum style --foreground 51 "✓ Selected: Default installation"
                 ;;
             "Minimal"*)
                 export INSTALL_MODE="minimal"
-                gum style --foreground 46 "✓ Selected: Minimal installation"${RESET}
+                gum style --foreground 46 "✓ Selected: Minimal installation"
                 ;;
             "Exit"*)
-                gum style --foreground 196 "Installation cancelled by user"${RESET}
+                gum style --foreground 196 "Installation cancelled by user"
                 exit 0
                 ;;
         esac

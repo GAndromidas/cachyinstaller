@@ -122,19 +122,17 @@ export INSTALL_LOG
 
 # Define cachy_ascii function
 show_cachy_banner() {
-    echo ""
-    echo -e "${BOLD}${CYAN}   ____           _           ___           _        _ _           "
-    echo -e "  / ___|__ _  ___| |__  _   _|_ _|_ __  ___| |_ __ _| | | ___ _ __ "
-    echo -e " | |   / _\` |/ __| \'_ \| | | || || \'_ \/ __| __/ _\` | | |/ _ \ \'_|"
-    echo -e " | |__| (_| | (__| | | | |_| || || | | \__ \ || (_| | | |  __/ |   "
-    echo -e "  \\____\\__,_|\\___|_| |_|\\__, |___|_| |_|___/\__\\__,_|_|_|\___|_|   "
-    echo -e "                        |___/${RESET}"
-    echo ""
+    if command -v figlet >/dev/null 2>&1; then
+        echo -e "${BOLD}${GREEN}"
+        figlet -c "CachyInstaller"
+        echo -e "${RESET}"
+    else
+        echo -e "${BOLD}${CYAN}CachyInstaller - Post-Installation Enhancement${RESET}"
+    fi
 }
 
 # Silently install gum and figlet for UI and banners before menu
 # Ensure pacman syncs first to avoid 'package not found' issues
-ui_info "Checking for UI helpers (gum, figlet)..."
 sudo pacman -Sy --noconfirm >/dev/null 2>&1 || log_error "Failed to synchronize pacman databases. This might affect the installation of UI helpers (gum, figlet). Please check your internet connection and try again."
 if ! command -v gum >/dev/null 2>&1; then
   sudo pacman -S --noconfirm gum >/dev/null 2>&1 || log_error "Failed to install 'gum', a required UI helper. The installer will proceed with a basic interface. Please ensure your internet connection is stable and try installing 'gum' manually if issues persist."

@@ -61,8 +61,8 @@ cleanup_system() {
 cleanup_helpers() {
     if pacman -Qi gendesk &>/dev/null; then
         log_info "Attempting to remove development helper package: gendesk"
-        echo "    Description: Provides .desktop file generation for AUR packages."
-        echo "    This package is typically not needed after installation."
+        echo -e "${RESET}    Description: Provides .desktop file generation for AUR packages.${RESET}"
+        echo -e "${RESET}    This package is typically not needed after installation.${RESET}"
 
         if sudo pacman -Rns gendesk --noconfirm >/dev/null 2>&1; then
             log_success "Removed gendesk helper package."
@@ -188,6 +188,7 @@ setup_snapshots() {
 
             log_success "Btrfs snapshot setup completed successfully!"
 
+            echo -e "${RESET}"
             cat << EOF
 
 Snapshot system configured:
@@ -203,6 +204,7 @@ How to use:
   • Snapshots stored in: /.snapshots/
 
 EOF
+            echo -e "${RESET}"
         else
             log_error "Snapper verification failed. Please check Snapper installation and configuration."
             return 1

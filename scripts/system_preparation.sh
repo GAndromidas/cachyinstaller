@@ -88,11 +88,11 @@ optimize_pacman() {
     step "Optimizing pacman configuration"
 
     # Determine optimal parallel downloads based on speed
-    if [ "$speed" -ge "$SPEED_FAST" ]; then
+    if (( speed >= SPEED_FAST )); then
         parallel_downloads=15
-    elif [ "$speed" -ge "$SPEED_MEDIUM" ]; then
+    elif (( speed >= SPEED_MEDIUM )); then
         parallel_downloads=10
-    elif [ "$speed" -ge "$SPEED_SLOW" ]; then
+    elif (( speed >= SPEED_SLOW )); then
         parallel_downloads=5
     else
         parallel_downloads=3
@@ -138,11 +138,11 @@ optimize_paru() {
     step "Optimizing paru configuration"
 
     # Set parallel downloads based on speed
-    if [ "$speed" -ge "$SPEED_FAST" ]; then
+    if (( speed >= SPEED_FAST )); then
         max_parallel=10
-    elif [ "$speed" -ge "$SPEED_MEDIUM" ]; then
+    elif (( speed >= SPEED_MEDIUM )); then
         max_parallel=8
-    elif [ "$speed" -ge "$SPEED_SLOW" ]; then
+    elif (( speed >= SPEED_SLOW )); then
         max_parallel=5
     else
         max_parallel=3

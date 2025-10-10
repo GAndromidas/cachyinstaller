@@ -239,16 +239,24 @@ install_packages() {
 }
 
 # Function to update mirrorlist using rate-mirrors or reflector
-update_mirrors() {\n    step "Updating mirrorlist"\n\n    if command_exists rate-mirrors; then
+update_mirrors() {
+    step "Updating mirrorlist"
+
+    if command_exists rate-mirrors; then
         sudo rate-mirrors --allow-root arch --save /etc/pacman.d/mirrorlist
         sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
-        log_success "Mirrorlist updated successfully with rate-mirrors"\n    else
-        log_warning "rate-mirrors not found, using reflector instead"\n        if command_exists reflector; then
+        log_success "Mirrorlist updated successfully with rate-mirrors"
+    else
+        log_warning "rate-mirrors not found, using reflector instead"
+        if command_exists reflector; then
             sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
             sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
-            log_success "Mirrorlist updated successfully with reflector"\n        else
-            log_error "Neither rate-mirrors nor reflector found for mirrorlist update"\n            return 1
-        fi\n    fi
+            log_success "Mirrorlist updated successfully with reflector"
+        else
+            log_error "Neither rate-mirrors nor reflector found for mirrorlist update"
+            return 1
+        fi
+    fi
     return 0
 }
 
@@ -257,7 +265,8 @@ detect_desktop_environment() {
     if [ -n "$XDG_CURRENT_DESKTOP" ]; then
         echo "$XDG_CURRENT_DESKTOP"
     elif [ -n "$DESKTOP_SESSION" ]; then
-        echo "$DESKTOP_SESSION"\n    elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "x11"; then
+        echo "$DESKTOP_SESSION"
+    elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "x11"; then
         echo "X11" # Fallback for unknown X11 DEs
     elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "wayland"; then
         echo "WAYLAND" # Fallback for unknown Wayland DEs

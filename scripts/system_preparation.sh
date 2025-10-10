@@ -129,24 +129,14 @@ optimize_pacman() {
 optimize_paru() {
     local speed=$1
     local paru_conf="/etc/paru.conf"
-    local max_parallel=5
+    # MaxParallel option is causing issues, removing it for now.
+    # paru generally inherits pacman's ParallelDownloads setting.
 
     if ! command -v paru >/dev/null 2>&1; then
         return 0
     fi
 
     step "Optimizing paru configuration"
-
-    # Set parallel downloads based on speed
-    if (( speed >= SPEED_FAST )); then
-        max_parallel=10
-    elif (( speed >= SPEED_MEDIUM )); then
-        max_parallel=8
-    elif (( speed >= SPEED_SLOW )); then
-        max_parallel=5
-    else
-        max_parallel=3
-    fi
 
     # Create or update paru configuration
     if [ ! -f "$paru_conf" ]; then
@@ -155,12 +145,8 @@ optimize_paru() {
         sudo cp "$paru_conf" "${BACKUP_DIR}/paru.conf.$(date +%Y%m%d_%H%M%S).bak"
     fi
 
-    # Update paru settings
-    if grep -q "^MaxParallel" "$paru_conf"; then
-        sudo sed -i "s/^MaxParallel = .*/MaxParallel = $max_parallel/" "$paru_conf"
-    else
-        echo "MaxParallel = $max_parallel" | sudo tee -a "$paru_conf" >/dev/null
-    fi
+    # MaxParallel option removed due to compatibility issues.
+    # Paru will now rely on pacman's ParallelDownloads setting.
 
     log_success "Paru configuration optimized"
 }
@@ -229,6 +215,26 @@ main() {
 
     # Check network speed and optimize package managers
     local network_speed=$(measure_download_speed)
+
+    step "Updating package keyrings"
+    log_info "Updating Arch Linux keyring..."
+    if ! sudo pacman -S --noconfirm --needed archlinux-keyring >/dev/null 2>&1; then
+        log_error "Failed to update archlinux-keyring. Package installations might fail."
+    else
+        log_success "Arch Linux keyring updated."
+    fi
+
+    log_info "Updating CachyOS keyring (if available)..."
+    # Check if cachyos-keyring exists before attempting to install
+    if pacman -Si cachyos-keyring &>/dev/null; then
+        if ! sudo pacman -S --noconfirm --needed cachyos-keyring >/dev/null 2>&1; then
+            log_error "Failed to update cachyos-keyring. Repository signatures might be invalid."
+        else
+            log_success "CachyOS keyring updated."
+        fi
+    else
+        log_warning "cachyos-keyring not found in repositories. Skipping CachyOS keyring update."
+    fi
 
     # Update mirrors using rate-mirrors (using the function from common.sh)
     update_mirrors

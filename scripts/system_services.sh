@@ -94,7 +94,7 @@ setup_desktop_tweaks() {
 
       # Copy KDE global shortcuts from config
       if [[ -f "$CONFIGS_DIR/kglobalshortcutsrc" ]]; then
-        mkdir -p "$(dirname "$kde_shortcut_file")"
+        mkdir -p "$(dirname "$kde_shortcut_file")" # Ensure target directory exists for the user
         cp "$CONFIGS_DIR/kglobalshortcutsrc" "$kde_shortcut_file"
         log_success "KDE global shortcuts applied (will be active after next login or Plasma restart)"
       else

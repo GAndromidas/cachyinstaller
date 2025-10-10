@@ -15,6 +15,9 @@ RESET='\033[0m'
 declare -a INSTALLED_PACKAGES
 declare -a ERRORS
 declare -a WARNINGS
+export INSTALLED_PACKAGES
+export ERRORS
+export WARNINGS
 
 # Utility functions
 command_exists() {
@@ -243,14 +246,16 @@ update_mirrors() {
     step "Updating mirrorlist"
 
     if command_exists rate-mirrors; then
-        sudo rate-mirrors --allow-root arch --output /etc/pacman.d/mirrorlist
-        sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
+        sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch
+        log_info "Synchronizing pacman databases and updating system..."
+        sudo pacman -Syyu --noconfirm # Perform full sync and update
         log_success "Mirrorlist updated successfully with rate-mirrors"
     else
-        log_warning "rate-mirrors not found, using reflector instead"
+        log_warning \"rate-mirrors not found, using reflector instead\"
         if command_exists reflector; then
             sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
-            sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
+            log_info "Synchronizing pacman databases and updating system..."
+            sudo pacman -Syyu --noconfirm # Perform full sync and update
             log_success "Mirrorlist updated successfully with reflector"
         else
             log_error "Neither rate-mirrors nor reflector found for mirrorlist update"

@@ -63,18 +63,19 @@ show_installation_summary() {
 }
 
 # Helper utilities that should be installed first
-HELPER_UTILS=(
-    "base-devel"
-    "flatpak"
-    "git"
-    "curl"
-    "wget"
-    "rsync"
-    "gum"
-    "ufw"
-    "cronie"
-    "fzf"
-    "zoxide"
+HELPER_UTILS=(\
+    "base-devel"\
+    "flatpak"\
+    "git"\
+    "curl"\
+    "wget"\
+    "rsync"\
+    "gum"\
+    "ufw"\
+    "cronie"\
+    "fzf"\
+    "zoxide"\
+    "starship"\
 )
 
 # Logging functions

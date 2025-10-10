@@ -313,7 +313,7 @@ show_menu() {
                 export INSTALL_MODE="minimal"
                 gum style --foreground 46 "✓ Selected: Minimal installation"${RESET}
                 ;;
-            "Exit"*)\
+            "Exit"*)
                 gum style --foreground 196 "Installation cancelled by user"${RESET}
                 exit 0
                 ;;

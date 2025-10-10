@@ -341,7 +341,7 @@ fi
 # Step 5: Fail2ban Setup
 if ! is_step_complete "fail2ban_setup"; then
   print_step_header 5 "$TOTAL_STEPS" "Fail2ban Setup"
-  ui_info "Setting up security protection with Fail2ban..."\
+  ui_info "Setting up security protection with Fail2ban..."
   if step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh"; then
     mark_step_complete "fail2ban_setup"
     ui_success "Step 5 completed"

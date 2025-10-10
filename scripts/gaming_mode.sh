@@ -23,12 +23,13 @@ detect_graphics_card() {
   local graphics_card_vendor="unknown"
 
   # Check for NVIDIA GPU
-  if lspci -k | grep -iqE \"VGA|3D|Display controller\" && lspci -k | grep -iq \"NVIDIA\"; then
-    graphics_card_vendor=\"nvidia\"
-  elif lspci -k | grep -iqE \"VGA|3D|Display controller\" && lspci -k | grep -iq \"AMD\"; then
-    graphics_card_vendor=\"amd\"
-  elif lspci -k | grep -iqE \"VGA|3D|Display controller\" && lspci -k | grep -iq \"Intel\"; then
-    graphics_card_vendor=\"intel\"
+  # Check for NVIDIA GPU
+  if lspci -k | grep -iqE 'VGA|3D|Display controller' && lspci -k | grep -iq "NVIDIA"; then
+    graphics_card_vendor="nvidia"
+  elif lspci -k | grep -iqE 'VGA|3D|Display controller' && lspci -k | grep -iq "AMD"; then
+    graphics_card_vendor="amd"
+  elif lspci -k | grep -iqE 'VGA|3D|Display controller' && lspci -k | grep -iq "Intel"; then
+    graphics_card_vendor="intel"
   fi
 
   echo "$graphics_card_vendor"

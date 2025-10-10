@@ -21,7 +21,7 @@ setup_maintenance() {
         sudo rm -rf /tmp/*
         log_success "Cleaned /tmp directory"
     else
-        log_info \"Skipping /tmp cleanup as it is a mounted filesystem (normal operation)\"
+        log_info "Skipping /tmp cleanup as it is a mounted filesystem (normal operation)"
     fi
 }
 

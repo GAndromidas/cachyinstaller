@@ -22,7 +22,7 @@ mkdir -p "$(dirname "$NETWORK_LOG")"
 
 # Function to measure download speed
 measure_download_speed() {
-    step "Measuring network speed"
+    step "Measuring network speed" >/dev/null
     local speed=0
     local attempts=0
     local max_attempts=3
@@ -32,7 +32,7 @@ measure_download_speed() {
     # Try multiple speed test attempts
     while [ $attempts -lt $max_attempts ] && [ $speed -eq 0 ]; do
         attempts=$((attempts + 1))
-        log_info "Testing network speed (attempt $attempts/$max_attempts)..."
+        log_info "Testing network speed (attempt $attempts/$max_attempts)..." >/dev/null
 
         # Try curl first
         if command -v curl >/dev/null 2>&1; then
@@ -45,7 +45,7 @@ measure_download_speed() {
                 speed_mbps=1
             fi
         else
-            log_warning "curl not found for speed measurement. Skipping curl attempts."
+            log_warning "curl not found for speed measurement. Skipping curl attempts." >/dev/null
             break # No point in retrying if curl isn't there
         fi
 
@@ -56,22 +56,22 @@ measure_download_speed() {
     # If curl failed, try a very basic fallback with wget to confirm connectivity and assign a default speed.
     # Wget is harder to get a precise speed from its direct output using only shell arithmetic.
     if [ "$speed_mbps" -eq 0 ] && command -v wget >/dev/null 2>&1; then
-        log_info "curl failed to measure network speed. Attempting basic connectivity check with wget."
+        log_info "curl failed to measure network speed. Attempting basic connectivity check with wget." >/dev/null
         # Use a silent spider test to confirm network access
         if wget -q --spider --timeout=10 "$test_file" >/dev/null 2>&1; then
-            log_info "wget connectivity confirmed. Assigning a medium network speed estimate."
+            log_info "wget connectivity confirmed. Assigning a medium network speed estimate." >/dev/null
             speed_mbps=50 # Assume a reasonable medium speed if connectivity is confirmed
         else
-            log_error "wget also failed to establish connectivity to $test_file."
+            log_error "wget also failed to establish connectivity to $test_file." >/dev/null
         fi
     fi
 
     # Use conservative default if all attempts failed or speed is very low
     if [ "$speed_mbps" -eq 0 ]; then
         speed_mbps=10 # Fallback to a safe default
-        log_warning "Could not accurately measure network speed after all attempts. Using a conservative default of ${speed_mbps}Mbps."
+        log_warning "Could not accurately measure network speed after all attempts. Using a conservative default of ${speed_mbps}Mbps." >/dev/null
     else
-        log_success "Measured network speed: ${speed_mbps}Mbps"
+        log_success "Measured network speed: ${speed_mbps}Mbps" >/dev/null
     fi
 
     echo "$speed_mbps"

@@ -62,15 +62,19 @@ setup_firewall_and_services() {
     fi
   done
 
+
   if [[ ${#services_to_enable[@]} -gt 0 ]]; then
-    log_info \"Enabling services: ${services_to_enable[*]}\"
-    for svc in \"${services_to_enable[@]}\"; do
-      if sudo systemctl enable --now \"$svc\"; then
-        log_success \"Enabled and started service: $svc\"\n      else
-        log_error \"Failed to enable/start service: $svc\"\n      fi
+    log_info "Enabling services: ${services_to_enable[*]}"
+    for svc in "${services_to_enable[@]}"; do
+      if sudo systemctl enable --now "$svc"; then
+        log_success "Enabled and started service: $svc"
+      else
+        log_error "Failed to enable/start service: $svc"
+      fi
     done
-    log_success \"Enabled ${#services_to_enable[@]} system services in total.\"\n  else
-    log_success \"All necessary system services are already enabled.\"
+    log_success "Enabled ${#services_to_enable[@]} system services in total."
+  else
+    log_success "All necessary system services are already enabled."
   fi
 }
 

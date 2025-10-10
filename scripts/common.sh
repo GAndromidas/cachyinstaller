@@ -243,7 +243,7 @@ update_mirrors() {
     step "Updating mirrorlist"
 
     if command_exists rate-mirrors; then
-        sudo rate-mirrors --allow-root arch --save /etc/pacman.d/mirrorlist
+        sudo rate-mirrors --allow-root arch --output /etc/pacman.d/mirrorlist
         sudo pacman -Sy --noconfirm >/dev/null 2>&1 # Suppress output of pacman -Syy
         log_success "Mirrorlist updated successfully with rate-mirrors"
     else

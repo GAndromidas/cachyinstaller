@@ -84,7 +84,14 @@ fi
 
 # 4. Install AUR & Flatpak Packages
 install_aur_packages "${aur_pkgs[@]}"
-install_flatpak_quietly "${flatpak_pkgs[@]}"
+
+if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
+  if ! command_exists flatpak; then
+    ui_info "Installing Flatpak..."
+    install_packages_quietly flatpak || { log_error "Failed to install Flatpak, skipping packages."; return; }
+  fi
+  install_flatpak_quietly "${flatpak_pkgs[@]}"
+fi
 
 }
 
@@ -100,12 +107,14 @@ install_aur_packages() {
     if [ "${DRY_RUN:-false}" = true ]; then
         for pkg in "${pkgs_to_install[@]}"; do
             ui_info "  - [DRY-RUN] Would install AUR package: $pkg"
+            INSTALLED_PACKAGES+=("$pkg (AUR)")
         done
         return
     fi
 
     if paru -S --noconfirm --needed "${pkgs_to_install[@]}" >> "$INSTALL_LOG" 2>&1; then
         ui_success "AUR packages installed successfully."
+        for pkg in "${pkgs_to_install[@]}"; do INSTALLED_PACKAGES+=("$pkg (AUR)"); done
     else
         log_error "Failed to install some AUR packages."
     fi

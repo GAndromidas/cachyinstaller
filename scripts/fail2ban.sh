@@ -1,8 +1,9 @@
 #!/bin/bash
 set -uo pipefail
 
-# --- User Confirmation ---
-local confirm_fail2ban=false
+setup_fail2ban() {
+  # --- User Confirmation ---
+  local confirm_fail2ban=false
 ui_info "Fail2ban provides protection against SSH brute-force attacks."
 if [ "${DRY_RUN:-false}" = true ]; then
     ui_info "[DRY-RUN] Would ask to install Fail2ban."
@@ -73,4 +74,7 @@ else
   ui_info "[DRY-RUN] Would have enabled and started the Fail2ban service."
 fi
 
+}
+
+setup_fail2ban
 return 0

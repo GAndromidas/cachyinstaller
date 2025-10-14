@@ -135,7 +135,6 @@ show_gum_menu() {
   choice=$(gum choose --cursor="-> " --selected.foreground 51 --cursor.foreground 51 \
     "Standard - Complete setup with all recommended packages" \
     "Minimal - Essential tools only for a lightweight system" \
-    "Custom - Interactive selection (choose what to install)" \
     "Exit - Cancel installation")
 
   case "$choice" in
@@ -147,10 +146,7 @@ show_gum_menu() {
       INSTALL_MODE="minimal"
       ui_success "Selected: Minimal installation"
       ;;
-    "Custom"*)
-      INSTALL_MODE="custom"
-      ui_warn "Selected: Custom installation"
-      ;;
+
     "Exit"*)
       ui_info "Installation cancelled."
       exit 0
@@ -162,18 +158,16 @@ show_traditional_menu() {
   echo -e "${CYAN}Choose your installation mode:${RESET}"
   echo "  1) Standard - Complete setup with all recommended packages"
   echo "  2) Minimal - Essential tools only for a lightweight system"
-  echo "  3) Custom - Interactive selection (choose what to install)"
-  echo "  4) Exit - Cancel installation"
+  echo "  3) Exit - Cancel installation"
 
   local menu_choice
   while true; do
-    read -r -p "Enter your choice [1-4]: " menu_choice
+    read -r -p "Enter your choice [1-3]: " menu_choice
     case "$menu_choice" in
       1) INSTALL_MODE="default"; ui_success "Selected: Standard"; break ;;
       2) INSTALL_MODE="minimal"; ui_success "Selected: Minimal"; break ;;
-      3) INSTALL_MODE="custom"; ui_warn "Selected: Custom"; break ;;
-      4) ui_info "Installation cancelled."; exit 0 ;;
-      *) ui_error "Invalid choice! Please enter 1, 2, 3, or 4." ;;
+      3) ui_info "Installation cancelled."; exit 0 ;;
+      *) ui_error "Invalid choice! Please enter 1, 2, or 3." ;;
     esac
   done
 }

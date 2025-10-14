@@ -44,6 +44,39 @@ CONFIGS_DIR="$SCRIPT_DIR/configs"
 
 source "$SCRIPTS_DIR/common.sh"
 
+# --- Function to setup system environment variables ---
+# This is run on every invocation to ensure variables are set, even on resume.
+setup_system_enhancements() {
+    ui_info "Detecting system properties..."
+
+    # Detect GPU vendor and export for other scripts
+    if lspci | grep -i "VGA" | grep -i "NVIDIA" >/dev/null; then
+        export GPU_VENDOR="nvidia"
+        ui_info "  - NVIDIA GPU detected"
+    elif lspci | grep -i "VGA" | grep -i "AMD" >/dev/null; then
+        export GPU_VENDOR="amd"
+        ui_info "  - AMD GPU detected"
+    elif lspci | grep -i "VGA" | grep -i "Intel" >/dev/null; then
+        export GPU_VENDOR="intel"
+        ui_info "  - Intel GPU detected"
+    else
+        # Default to empty if no specific GPU is found, to avoid unbound variable errors.
+        export GPU_VENDOR=""
+    fi
+
+    # Detect if it's a laptop
+    if [ -d "/sys/class/power_supply" ] && ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
+        export IS_LAPTOP=true
+        ui_info "  - Laptop system detected"
+    else
+        export IS_LAPTOP=false
+    fi
+
+    ui_success "System properties detected."
+}
+# Always run system detection
+setup_system_enhancements
+
 # Initialize log file
 {
   echo "=========================================="

@@ -78,30 +78,7 @@ optimize_pacman() {
     ui_success "Pacman configuration optimized."
 }
 
-# --- Function to setup system environment variables ---
-setup_system_enhancements() {
-    ui_info "Detecting system properties..."
 
-    # Detect GPU vendor and export for other scripts
-    if lspci | grep -i "VGA" | grep -i "NVIDIA" >/dev/null; then
-        export GPU_VENDOR="nvidia"
-        ui_info "  - NVIDIA GPU detected"
-    elif lspci | grep -i "VGA" | grep -i "AMD" >/dev/null; then
-        export GPU_VENDOR="amd"
-        ui_info "  - AMD GPU detected"
-    elif lspci | grep -i "VGA" | grep -i "Intel" >/dev/null; then
-        export GPU_VENDOR="intel"
-        ui_info "  - Intel GPU detected"
-    fi
-
-    # Detect if it's a laptop
-    if [ -d "/sys/class/power_supply" ] && ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
-        export IS_LAPTOP=true
-        ui_info "  - Laptop system detected"
-    fi
-
-    ui_success "System properties detected."
-}
 
 
 # --- Main Execution ---
@@ -118,6 +95,5 @@ else
 fi
 
 optimize_pacman "$NETWORK_SPEED"
-setup_system_enhancements
 
 return 0

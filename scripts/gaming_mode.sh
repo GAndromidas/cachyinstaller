@@ -1,6 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 
+setup_gaming_mode() {
 # --- User Confirmation ---
 # CachyOS is gaming-focused, but we should still ask, especially for minimal installs.
 if [ "${INSTALL_MODE}" = "minimal" ]; then
@@ -106,4 +107,7 @@ fi
 install_aur_packages "${aur_pkgs[@]}"
 install_flatpak_quietly "${flatpak_pkgs[@]}"
 
+}
+
+setup_gaming_mode
 return 0

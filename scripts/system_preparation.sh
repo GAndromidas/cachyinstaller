@@ -13,7 +13,7 @@ mkdir -p "$BACKUP_DIR"
 
 # --- Function to measure download speed ---
 measure_download_speed() {
-    ui_info "Measuring network speed..."
+    ui_info "Measuring network speed..." >&2
     local speed_mbps=0
     local test_file="https://archlinux.org/packages/core/x86_64/linux/download"
 
@@ -26,9 +26,9 @@ measure_download_speed() {
     # Use a conservative default if the measurement fails or is too low
     if [ "$speed_mbps" -eq 0 ]; then
         speed_mbps=10 # Fallback to a safe 10 Mbps
-        ui_warn "Could not accurately measure network speed. Using a conservative default of ${speed_mbps}Mbps."
+        ui_warn "Could not accurately measure network speed. Using a conservative default of ${speed_mbps}Mbps." >&2
     else
-        ui_success "Measured network speed: ${speed_mbps}Mbps"
+        ui_success "Measured network speed: ${speed_mbps}Mbps" >&2
     fi
 
     echo "$speed_mbps"

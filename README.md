@@ -1,86 +1,121 @@
+<div align="center">
+
 # CachyInstaller
+### Your Fully Automated CachyOS Post-Install Companion
 
-A simple, robust, and fully automated post-installation script designed to enhance your CachyOS system. It respects CachyOS defaults, runs unattended, and cleans up after itself, leaving your system perfectly configured.
+</div>
 
-## Overview
+<p align="center">
+  A simple, robust, and professional post-installation script designed to enhance your CachyOS system. It respects CachyOS defaults, runs unattended after your initial choice, and cleans up after itself, leaving your system perfectly configured and ready to use.
+</p>
 
-CachyInstaller streamlines the post-installation experience for CachyOS. It intelligently applies optimizations, installs curated applications based on your preferences, and enhances system security. The script is designed to be "fire-and-forget"—run it once, and your system is ready to go.
+<div align="center">
 
 <img width="820" height="444" alt="Screenshot_20250918_081412" src="https://github.com/user-attachments/assets/bb676b34-ae3f-4625-b8c9-7338c116c85e" />
 
-## Core Principles
-
--   **Fully Automated**: After an initial menu selection, the script runs without any further user interaction (with one optional exception in Minimal mode).
--   **Respects Defaults**: The installer enhances your system without overriding the sensible defaults provided by the CachyOS team, especially regarding drivers and snapshot configurations.
--   **Non-Destructive**: Your personal configuration files are safe. The script will only place default configurations if you don't already have one.
--   **Self-Cleaning**: Upon successful completion, the script automatically removes its own directory and log files, leaving no trace.
+</div>
 
 ---
 
-## Installation
+## ➤ Core Principles
 
-To get started with CachyInstaller, follow these steps:
+CachyInstaller is built on a clear philosophy to ensure a safe, pleasant, and powerful user experience.
 
-1.  Clone the repository:
+-   **⚙️ Fire-and-Forget Automation**: After an initial menu selection, the script runs to completion without any further user interaction.
+-   **🛡️ Respects Defaults**: The installer enhances your system without overriding the sensible defaults provided by the CachyOS team, especially regarding drivers.
+-   **✍️ Non-Destructive**: Your personal configuration files are safe. The script will only place default configurations (`fish`, `MangoHud`, etc.) if you don't already have one.
+-   **🧹 Clean Finish**: Upon successful completion, the script automatically removes its own directory and log files, leaving no trace.
+
+---
+
+## ➤ Getting Started
+
+Getting your CachyOS system set up is simple.
+
+1.  **Clone the Repository**
     ```bash
     git clone https://github.com/your-username/cachyinstaller.git
     ```
 
-2.  Navigate to the directory:
+2.  **Navigate to the Directory**
     ```bash
     cd cachyinstaller
     ```
 
-3.  Make the script executable and run it:
+3.  **Make the Script Executable**
     ```bash
     chmod +x install.sh
+    ```
+
+4.  **Run the Installer**
+    ```bash
     ./install.sh
     ```
 
 ---
 
-## Installation Options
+## ➤ Installation Modes
 
-You will be prompted to choose one of two installation modes:
+You will be prompted to choose one of two installation modes.
 
 ### Standard Mode (Recommended)
 This is the fully automated "do everything" option. It installs a complete suite of applications and enhancements for a feature-rich desktop experience, including the full gaming setup.
 
 ### Minimal Mode
-This provides a lightweight setup with essential tools. It will pause once to ask for your confirmation before installing the gaming-related packages, giving you control over your minimal installation.
+This provides a lightweight setup with only essential tools. It will pause **once** to ask for your confirmation (`Y/n`) before installing the gaming-related packages, giving you control over your minimal installation.
 
 ---
 
-## The Process
+## ➤ Features & The Installation Process
 
-CachyInstaller runs through a sequence of 7 automated steps:
+CachyInstaller runs through a sequence of 7 automated steps, providing a clear and beautiful summary of packages to be installed at each stage.
 
--   **Step 1: System Preparation**: Optimizes `pacman` for your network speed and updates system keyrings and package lists.
--   **Step 2: Shell Enhancement**: Sets up the Fish shell with the Starship prompt and useful plugins. Only places default configs if none exist.
--   **Step 3: Program Installation**: Installs applications from the `programs.yaml` file based on your chosen mode (Standard/Minimal) and detected desktop environment.
--   **Step 4: Gaming Mode**: Installs the `cachyos-gaming-meta` package to provide the official CachyOS gaming experience. In Minimal mode, this step is optional.
--   **Step 5: Security Hardening**: Automatically installs, configures, and enables the UFW firewall and Fail2ban (for SSH protection).
--   **Step 6: System Services**: Enables useful systemd services and applies non-destructive desktop tweaks (e.g., KDE global shortcuts).
--   **Step 7: Maintenance & Cleanup**: Cleans all package manager caches (`pacman`, `paru`, `flatpak`) to free up disk space. **This step does not touch your Btrfs snapshot setup.**
+#### ✔️ Step 1: System Preparation
+Optimizes `pacman` for your network speed by configuring parallel downloads and updates system keyrings and package lists.
 
----
+#### ✔️ Step 2: Shell Enhancement
+Sets up the modern and user-friendly **Fish shell** with the **Starship** prompt and useful plugins. It only places default configs if none exist, preserving your customizations.
 
-## FAQ
+#### ✔️ Step 3: Program Installation
+Installs applications from the `programs.yaml` file based on your chosen mode (Standard/Minimal) and your detected desktop environment (KDE, GNOME, etc.). It handles packages from the official repositories, the AUR, and Flatpak.
 
-### Is this script safe to re-run?
-Yes. The script is designed to be idempotent. Package installations will only install missing or outdated packages, and configuration files will not be overwritten if they already exist. You can safely re-run the script to install new packages you've added to the `programs.yaml` file.
+#### ✔️ Step 4: Gaming Mode
+Installs the `cachyos-gaming-meta` package to provide the official, high-performance CachyOS gaming experience.
 
-### Will this overwrite my custom shell configuration?
-No. The script will only copy default configuration files for `fish`, `starship`, `MangoHud`, etc., if it detects that you don't already have one. Your existing custom configs are safe.
+#### ✔️ Step 5: Security Hardening
+Automatically installs, configures, and enables the **UFW firewall** and **Fail2ban** (for SSH brute-force protection).
 
-### Does this script manage my Btrfs snapshots?
-No. To fully respect the CachyOS defaults, this script **does not** install, remove, or configure any snapshot software like Snapper or Timeshift. Your existing snapshot setup is left untouched.
+#### ✔️ Step 6: System Services
+Enables useful systemd services (like `fstrim.timer` for SSDs) and applies non-destructive desktop tweaks (e.g., KDE global shortcuts).
 
-### What happens after the script finishes?
-If the script completes without any errors, it will ask you to reboot. It will then automatically delete the `cachyinstaller` directory and its log file, leaving your system clean. If an error occurs, the files will be left in place for you to inspect the logs.
+#### ✔️ Step 7: Maintenance & Cleanup
+Cleans all package manager caches (`pacman`, `paru`, `flatpak`) to free up valuable disk space.
 
 ---
 
-## License
+## ➤ Customization
 
-CachyInstaller is released under the MIT License.
+The heart of CachyInstaller's flexibility is the `configs/programs.yaml` file. You can easily add or remove packages from the `default` and `minimal` sections to perfectly tailor the installation to your needs before running the script.
+
+---
+
+## ➤ Frequently Asked Questions (FAQ)
+
+**Is this script safe to re-run?**
+> Yes. The script is designed to be idempotent. Package installations only affect missing or outdated packages, and configuration files are not overwritten. You can safely re-run it to apply changes from your `programs.yaml` file.
+
+**Will this overwrite my custom shell configuration?**
+> No. The script will only copy default configuration files for `fish`, `starship`, `MangoHud`, etc., if it detects that you don't already have one. Your custom configs are safe.
+
+**What happens after the script finishes?**
+> If the script completes without any errors, it will ask you to reboot and then automatically delete its own directory and log file. If an error occurs, the files will be left in place for you to inspect the logs for troubleshooting.
+
+---
+
+## ➤ Contributing
+
+Contributions are welcome! Feel free to open an issue or submit a pull request for any improvements or bug fixes.
+
+## ➤ License
+
+This project is licensed under the **MIT License**.

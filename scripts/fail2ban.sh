@@ -2,27 +2,7 @@
 set -uo pipefail
 
 setup_fail2ban() {
-  # --- User Confirmation ---
-  local confirm_fail2ban=false
-ui_info "Fail2ban provides protection against SSH brute-force attacks."
-if [ "${DRY_RUN:-false}" = true ]; then
-    ui_info "[DRY-RUN] Would ask to install Fail2ban."
-    confirm_fail2ban=true # Assume yes for dry run to show what would happen
-elif supports_gum; then
-    if gum confirm "Install and configure Fail2ban for SSH?"; then
-        confirm_fail2ban=true
-    fi
-else
-    read -r -p "Install and configure Fail2ban for SSH? [y/N]: " response
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        confirm_fail2ban=true
-    fi
-fi
-
-if ! $confirm_fail2ban; then
-    ui_warn "Skipping Fail2ban setup as requested."
-    return 0
-fi
+  ui_info "Setting up Fail2ban for SSH protection..."
 
 # --- Installation ---
 ui_info "Installing Fail2ban..."

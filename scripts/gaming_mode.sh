@@ -34,9 +34,7 @@ local fallback_pkgs=(
     "steam" "lutris" "gamemode" "lib32-gamemode" "mangohud"
     "lib32-mangohud" "goverlay" "gamescope" "wine"
 )
-local nvidia_pkgs=("lib32-nvidia-utils" "nvidia-utils")
-local amd_pkgs=("lib32-vulkan-radeon" "vulkan-radeon" "lib32-mesa" "mesa")
-local intel_pkgs=("lib32-vulkan-intel" "vulkan-intel" "lib32-mesa" "mesa")
+
 local aur_pkgs=("proton-cachyos" "heroic-games-launcher-bin")
 local flatpak_pkgs=("com.vysp3r.ProtonPlus")
 
@@ -48,25 +46,17 @@ local flatpak_pkgs=("com.vysp3r.ProtonPlus")
 ui_info "Installing core gaming packages..."
 # Try the CachyOS meta package first for a cohesive experience.
 if ! install_packages_quietly "$cachyos_meta_pkg"; then
-    ui_warn "CachyOS meta-package failed or was not found. Installing individual fallback packages..."
-    install_packages_quietly "${fallback_pkgs[@]}"
+  ui_warn "CachyOS meta-package failed or was not found. Installing individual fallback packages..."
+  install_packages_quietly "${fallback_pkgs[@]}"
 fi
 
-# 2. Install Graphics Drivers
-# The GPU_VENDOR variable is exported by system_preparation.sh
-if [ -n "${GPU_VENDOR}" ]; then
-    ui_info "Installing graphics drivers for ${GPU_VENDOR^^}..."
-    case "$GPU_VENDOR" in
-        nvidia) install_packages_quietly "${nvidia_pkgs[@]}" ;;
-        amd)    install_packages_quietly "${amd_pkgs[@]}" ;;
-        intel)  install_packages_quietly "${intel_pkgs[@]}" ;;
-    esac
-else
-    ui_warn "GPU vendor could not be determined. Skipping automatic driver installation."
-    ui_warn "Please install the appropriate drivers for your hardware manually."
+# Verify Lutris is installed
+if ! command_exists lutris; then
+  ui_warn "Lutris was not installed with the meta-package, installing it now..."
+  install_packages_quietly "lutris"
 fi
 
-# 3. Configure MangoHud
+# 2. Configure MangoHud
 ui_info "Configuring MangoHud..."
 MANGOHUD_CONFIG_DIR="$HOME/.config/MangoHud"
 MANGOHUD_CONFIG_SOURCE="$CONFIGS_DIR/MangoHud.conf"
@@ -82,7 +72,7 @@ else
     ui_info "[DRY-RUN] Would have copied MangoHud configuration."
 fi
 
-# 4. Install AUR & Flatpak Packages
+# 3. Install AUR & Flatpak Packages
 install_aur_packages "${aur_pkgs[@]}"
 
 if [ ${#flatpak_pkgs[@]} -gt 0 ]; then

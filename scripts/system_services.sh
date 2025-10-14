@@ -3,22 +3,7 @@ set -uo pipefail
 
 # --- Function to setup UFW Firewall ---
 setup_firewall() {
-  local confirm_ufw=false
-  ui_info "UFW is a simple firewall. It's recommended for most users."
-  if [ "${DRY_RUN:-false}" = true ]; then
-      ui_info "[DRY-RUN] Would ask to install and enable UFW."
-      confirm_ufw=true
-  elif supports_gum; then
-      gum confirm "Setup and enable UFW firewall?" && confirm_ufw=true
-  else
-      read -r -p "Setup and enable UFW firewall? [y/N]: " response
-      [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]] && confirm_ufw=true
-  fi
-
-  if ! $confirm_ufw; then
-      ui_warn "Skipping UFW firewall setup."
-      return
-  fi
+  ui_info "Setting up UFW firewall..."
 
   ui_info "Installing UFW..."
   install_packages_quietly "ufw" || { log_error "Failed to install UFW."; return 1; }
@@ -100,22 +85,7 @@ apply_desktop_tweaks() {
         return
     fi
 
-    local confirm_kde_tweaks=false
-    ui_info "KDE-specific tweaks are available, such as custom keyboard shortcuts for applications."
-    if [ "${DRY_RUN:-false}" = true ]; then
-        ui_info "[DRY-RUN] Would ask to apply KDE global shortcuts."
-        confirm_kde_tweaks=true
-    elif supports_gum; then
-        gum confirm "Apply custom KDE global shortcuts?" && confirm_kde_tweaks=true
-    else
-        read -r -p "Apply custom KDE global shortcuts? [y/N]: " response
-        [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]] && confirm_kde_tweaks=true
-    fi
-
-    if ! $confirm_kde_tweaks; then
-        ui_warn "Skipping KDE tweaks."
-        return
-    fi
+    ui_info "Applying KDE-specific tweaks..."
 
     local kde_shortcut_file="$HOME/.config/kglobalshortcutsrc"
     local config_shortcut_file="$CONFIGS_DIR/kglobalshortcutsrc"

@@ -20,10 +20,12 @@ ensure_yq() {
 
 # --- YAML Parsing Helper ---
 # Reads a simple list of packages from a given path in the YAML file.
+# Reads a list of packages from a given path in the YAML file.
+# It correctly handles simple lists of strings and lists of objects with a 'name' key.
 read_yaml_list() {
   local yaml_path="$1"
-  # yq arguments: read raw output, handle nulls gracefully, from the specified file
-  yq -r "${yaml_path}[]" "$PROGRAMS_YAML" 2>/dev/null || echo ""
+  # For each item in the array, get its '.name' property. If it's null (e.g., a simple string), return the item itself.
+  yq -r "${yaml_path}[] | .name // ." "$PROGRAMS_YAML" 2>/dev/null || echo ""
 }
 
 # --- Package Manager Helpers ---
@@ -81,7 +83,7 @@ ensure_yq || return 1
 
 # 2. Load package lists based on installation mode
 ui_info "Loading package lists for '$INSTALL_MODE' mode..."
-mapfile -t pacman_base_pkgs < <(read_yaml_list ".pacman_packages")
+mapfile -t pacman_base_pkgs < <(read_yaml_list ".pacman.packages")
 mapfile -t essential_pkgs < <(read_yaml_list ".essential.${INSTALL_MODE:-default}")
 mapfile -t aur_pkgs < <(read_yaml_list ".aur.${INSTALL_MODE:-default}")
 
@@ -125,6 +127,11 @@ fi
 # 7. Install Flatpak packages
 if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
     ui_info "Setting up Flatpak..."
+    if ! command_exists flatpak; then
+        ui_info "Installing Flatpak..."
+        install_packages_quietly flatpak || { log_error "Failed to install Flatpak. Skipping Flatpak packages."; return 0; }
+    fi
+
     if [ "${DRY_RUN:-false}" = false ]; then
         # Ensure flathub remote exists
         if ! flatpak remote-list | grep -q flathub; then

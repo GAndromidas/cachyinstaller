@@ -69,6 +69,31 @@ setup_system_enhancements() {
 # Always run system detection
 setup_system_enhancements
 
+# --- Function to setup system environment variables ---
+# This is run on every invocation to ensure variables are set, even on resume.
+setup_system_enhancements() {
+    # Detect GPU vendor and export for other scripts
+    if lspci | grep -i "VGA" | grep -i "NVIDIA" >/dev/null; then
+        export GPU_VENDOR="nvidia"
+    elif lspci | grep -i "VGA" | grep -i "AMD" >/dev/null; then
+        export GPU_VENDOR="amd"
+    elif lspci | grep -i "VGA" | grep -i "Intel" >/dev/null; then
+        export GPU_VENDOR="intel"
+    else
+        # Default to empty if no specific GPU is found, to avoid unbound variable errors.
+        export GPU_VENDOR=""
+    fi
+
+    # Detect if it's a laptop
+    if [ -d "/sys/class/power_supply" ] && ls /sys/class/power_supply/BAT* >/dev/null 2>&1; then
+        export IS_LAPTOP=true
+    else
+        export IS_LAPTOP=false
+    fi
+}
+# Always run system detection
+setup_system_enhancements
+
 # Initialize log file
 {
   echo "=========================================="

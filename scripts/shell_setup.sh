@@ -11,49 +11,40 @@ fi
 CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../configs" && pwd)"
 FISH_CONFIG_DIR="$HOME/.config/fish"
 FASTFETCH_CONFIG_DIR="$HOME/.config/fastfetch"
-BACKUP_DIR="$HOME/.config/cachyinstaller/backups/shell"
+
 
 # --- Create Directories ---
 mkdir -p "$FISH_CONFIG_DIR/functions"
 mkdir -p "$FISH_CONFIG_DIR/completions"
 mkdir -p "$FASTFETCH_CONFIG_DIR"
-mkdir -p "$BACKUP_DIR"
 
-# --- Backup existing configurations ---
-ui_info "Backing up existing shell configurations..."
-timestamp=$(date +%Y%m%d_%H%M%S)
-configs_to_backup=(
-  "$FISH_CONFIG_DIR/config.fish"
-  "$FISH_CONFIG_DIR/starship.toml"
-  "$FASTFETCH_CONFIG_DIR/config.jsonc"
-)
 
-for config in "${configs_to_backup[@]}"; do
-  if [ -f "$config" ]; then
-    if [ "${DRY_RUN:-false}" = false ]; then
-      cp "$config" "$BACKUP_DIR/$(basename "$config").${timestamp}.bak"
-    fi
-    ui_info "  - Backed up $(basename "$config")"
-  fi
-done
+
 
 # --- Install Fish & Starship Configuration ---
-ui_info "Installing enhanced Fish and Starship configurations..."
+ui_info "Applying default Fish and Starship configurations if none exist..."
 if [ "${DRY_RUN:-false}" = false ]; then
-  cp "$CONFIGS_DIR/fish/config.fish" "$FISH_CONFIG_DIR/config.fish"
-  cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
-  ui_success "Fish and Starship configs installed."
+  if [ ! -f "$FISH_CONFIG_DIR/config.fish" ]; then
+    cp "$CONFIGS_DIR/fish/config.fish" "$FISH_CONFIG_DIR/config.fish"
+    ui_info "  - Default fish config installed."
+  fi
+  if [ ! -f "$FISH_CONFIG_DIR/starship.toml" ]; then
+    cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
+    ui_info "  - Default starship config installed."
+  fi
 else
-  ui_info "[DRY-RUN] Would have copied Fish and Starship configs."
+  ui_info "[DRY-RUN] Would copy default configs if they do not exist."
 fi
 
 # --- Install Fastfetch Configuration ---
-ui_info "Installing custom Fastfetch configuration..."
+ui_info "Applying default Fastfetch configuration if none exists..."
 if [ "${DRY_RUN:-false}" = false ]; then
-  cp "$CONFIGS_DIR/fastfetch/config.jsonc" "$FASTFETCH_CONFIG_DIR/config.jsonc"
-  ui_success "Fastfetch config installed."
+  if [ ! -f "$FASTFETCH_CONFIG_DIR/config.jsonc" ]; then
+    cp "$CONFIGS_DIR/fastfetch/config.jsonc" "$FASTFETCH_CONFIG_DIR/config.jsonc"
+    ui_info "  - Default fastfetch config installed."
+  fi
 else
-  ui_info "[DRY-RUN] Would have copied Fastfetch config."
+  ui_info "[DRY-RUN] Would copy default fastfetch config if it does not exist."
 fi
 
 # --- Install Fisher and Plugins ---

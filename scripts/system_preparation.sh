@@ -78,9 +78,6 @@ optimize_pacman() {
     ui_success "Pacman configuration optimized."
 }
 
-
-
-
 # --- Main Execution ---
 NETWORK_SPEED=$(measure_download_speed)
 

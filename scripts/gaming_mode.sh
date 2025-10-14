@@ -62,14 +62,12 @@ MANGOHUD_CONFIG_DIR="$HOME/.config/MangoHud"
 MANGOHUD_CONFIG_SOURCE="$CONFIGS_DIR/MangoHud.conf"
 if [ "${DRY_RUN:-false}" = false ]; then
     mkdir -p "$MANGOHUD_CONFIG_DIR"
-    if [ -f "$MANGOHUD_CONFIG_SOURCE" ]; then
+    if [ -f "$MANGOHUD_CONFIG_SOURCE" ] && [ ! -f "$MANGOHUD_CONFIG_DIR/MangoHud.conf" ]; then
         cp "$MANGOHUD_CONFIG_SOURCE" "$MANGOHUD_CONFIG_DIR/MangoHud.conf"
-        ui_success "MangoHud configuration applied."
-    else
-        ui_warn "MangoHud config file not found, default settings will be used."
+        ui_info "  - Default MangoHud configuration applied."
     fi
 else
-    ui_info "[DRY-RUN] Would have copied MangoHud configuration."
+    ui_info "[DRY-RUN] Would copy default MangoHud config if it does not exist."
 fi
 
 # 3. Install AUR & Flatpak Packages

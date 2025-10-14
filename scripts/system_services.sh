@@ -91,17 +91,14 @@ apply_desktop_tweaks() {
     local config_shortcut_file="$CONFIGS_DIR/kglobalshortcutsrc"
 
     if [ -f "$config_shortcut_file" ]; then
-        ui_info "Applying KDE global shortcuts..."
+        ui_info "Applying default KDE global shortcuts if none exist..."
         if [ "${DRY_RUN:-false}" = false ]; then
-            # Backup existing file before overwriting
-            if [ -f "$kde_shortcut_file" ]; then
-                mv "$kde_shortcut_file" "${kde_shortcut_file}.bak"
-                ui_info "  - Backed up existing shortcuts to ${kde_shortcut_file}.bak"
+            if [ ! -f "$kde_shortcut_file" ]; then
+                cp "$config_shortcut_file" "$kde_shortcut_file"
+                ui_info "  - Default KDE shortcuts applied. They will be active after you log out and back in."
             fi
-            cp "$config_shortcut_file" "$kde_shortcut_file"
-            ui_success "KDE shortcuts applied. They will be active after you log out and back in."
         else
-            ui_info "[DRY-RUN] Would copy custom shortcuts to $kde_shortcut_file"
+            ui_info "[DRY-RUN] Would copy default KDE shortcuts if they do not exist."
         fi
     else
         ui_warn "KDE shortcuts file not found in configs directory. Skipping."

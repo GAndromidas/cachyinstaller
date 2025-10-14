@@ -199,99 +199,52 @@ else
   trap 'save_log_on_exit' EXIT INT TERM
 fi
 
-# State tracking for resumable installations
-STATE_FILE="$HOME/.cachyinstaller.state"
-mkdir -p "$(dirname "$STATE_FILE")"
-
-mark_step_complete() {
-  echo "$1" >> "$STATE_FILE"
-}
-
-is_step_complete() {
-  [ -f "$STATE_FILE" ] && grep -q "^$1$" "$STATE_FILE"
-}
-
 # Installation start header
 print_header "Starting CachyOS Enhancement" \
   "This process will take 5-15 minutes depending on your internet speed." \
   "You can safely leave this running."
 
 # Step 1: System Preparation
-if ! is_step_complete "system_preparation"; then
-  print_step_header 1 "$TOTAL_STEPS" "System Preparation"
-  ui_info "Updating package lists and installing system utilities..."
-  step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh" || log_error "System preparation failed"
-  mark_step_complete "system_preparation"
-  ui_success "Step 1 completed"
-else
-  ui_info "Step 1 (System Preparation) already completed - skipping"
-fi
+print_step_header 1 "$TOTAL_STEPS" "System Preparation"
+ui_info "Updating package lists and installing system utilities..."
+step "System Preparation" && source "$SCRIPTS_DIR/system_preparation.sh" || log_error "System preparation failed"
+ui_success "Step 1 completed"
 
 # Step 2: Fish Shell Enhancement
-if ! is_step_complete "shell_setup"; then
-  print_step_header 2 "$TOTAL_STEPS" "Fish Shell Enhancement"
-  ui_info "Enhancing the Fish shell with plugins and custom configurations..."
-  step "Shell Setup" && source "$SCRIPTS_DIR/shell_setup.sh" || log_error "Fish shell enhancement failed"
-  mark_step_complete "shell_setup"
-  ui_success "Step 2 completed"
-else
-  ui_info "Step 2 (Fish Shell Enhancement) already completed - skipping"
-fi
+print_step_header 2 "$TOTAL_STEPS" "Fish Shell Enhancement"
+ui_info "Enhancing the Fish shell with plugins and custom configurations..."
+step "Shell Setup" && source "$SCRIPTS_DIR/shell_setup.sh" || log_error "Fish shell enhancement failed"
+ui_success "Step 2 completed"
 
 # Step 3: Programs Installation
-if ! is_step_complete "programs_installation"; then
-  print_step_header 3 "$TOTAL_STEPS" "Programs Installation"
-  ui_info "Installing applications based on your desktop environment..."
-  step "Programs Installation" && source "$SCRIPTS_DIR/programs.sh" || log_error "Programs installation failed"
-  mark_step_complete "programs_installation"
-  ui_success "Step 3 completed"
-else
-  ui_info "Step 3 (Programs Installation) already completed - skipping"
-fi
+print_step_header 3 "$TOTAL_STEPS" "Programs Installation"
+ui_info "Installing applications based on your desktop environment..."
+step "Programs Installation" && source "$SCRIPTS_DIR/programs.sh" || log_error "Programs installation failed"
+ui_success "Step 3 completed"
 
 # Step 4: Gaming Mode
-if ! is_step_complete "gaming_mode"; then
-  print_step_header 4 "$TOTAL_STEPS" "Gaming Mode"
-  ui_info "Setting up gaming tools (optional)..."
-  step "Gaming Mode" && source "$SCRIPTS_DIR/gaming_mode.sh" || log_error "Gaming Mode setup failed"
-  mark_step_complete "gaming_mode"
-  ui_success "Step 4 completed"
-else
-  ui_info "Step 4 (Gaming Mode) already completed - skipping"
-fi
+print_step_header 4 "$TOTAL_STEPS" "Gaming Mode"
+ui_info "Setting up gaming tools (optional)..."
+step "Gaming Mode" && source "$SCRIPTS_DIR/gaming_mode.sh" || log_error "Gaming Mode setup failed"
+ui_success "Step 4 completed"
 
 # Step 5: Fail2ban Setup
-if ! is_step_complete "fail2ban_setup"; then
-  print_step_header 5 "$TOTAL_STEPS" "Fail2ban Setup"
-  ui_info "Setting up security protection for SSH..."
-  step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh" || log_error "Fail2ban setup failed"
-  mark_step_complete "fail2ban_setup"
-  ui_success "Step 5 completed"
-else
-  ui_info "Step 5 (Fail2ban Setup) already completed - skipping"
-fi
+print_step_header 5 "$TOTAL_STEPS" "Fail2ban Setup"
+ui_info "Setting up security protection for SSH..."
+step "Fail2ban Setup" && source "$SCRIPTS_DIR/fail2ban.sh" || log_error "Fail2ban setup failed"
+ui_success "Step 5 completed"
 
 # Step 6: System Services
-if ! is_step_complete "system_services"; then
-  print_step_header 6 "$TOTAL_STEPS" "System Services"
-  ui_info "Enabling and configuring system services..."
-  step "System Services" && source "$SCRIPTS_DIR/system_services.sh" || log_error "System services configuration failed"
-  mark_step_complete "system_services"
-  ui_success "Step 6 completed"
-else
-  ui_info "Step 6 (System Services) already completed - skipping"
-fi
+print_step_header 6 "$TOTAL_STEPS" "System Services"
+ui_info "Enabling and configuring system services..."
+step "System Services" && source "$SCRIPTS_DIR/system_services.sh" || log_error "System services configuration failed"
+ui_success "Step 6 completed"
 
 # Step 7: Maintenance
-if ! is_step_complete "maintenance"; then
-  print_step_header 7 "$TOTAL_STEPS" "Maintenance"
-  ui_info "Final cleanup and system optimization..."
-  step "Maintenance" && source "$SCRIPTS_DIR/maintenance.sh" || log_error "Maintenance failed"
-  mark_step_complete "maintenance"
-  ui_success "Step 7 completed"
-else
-  ui_info "Step 7 (Maintenance) already completed - skipping"
-fi
+print_step_header 7 "$TOTAL_STEPS" "Maintenance"
+ui_info "Final cleanup and system optimization..."
+step "Maintenance" && source "$SCRIPTS_DIR/maintenance.sh" || log_error "Maintenance failed"
+ui_success "Step 7 completed"
 
 if [ "$DRY_RUN" = true ]; then
   print_header "Dry-Run Preview Completed"
@@ -324,9 +277,7 @@ log_performance "Total installation time"
   echo "=========================================="
   echo "Installation Summary"
   echo "=========================================="
-  echo "Completed steps:"
-  [ -f "$STATE_FILE" ] && cat "$STATE_FILE" | sed 's/^/  - /'
-  echo ""
+
   if [ ${#ERRORS[@]} -gt 0 ]; then
     echo "Errors encountered:"
     for error in "${ERRORS[@]}"; do

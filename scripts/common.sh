@@ -258,6 +258,35 @@ install_flatpak_quietly() {
   install_package_generic "flatpak" "$@"
 }
 
+# --- Helper for AUR packages (using paru) ---
+install_aur_packages() {
+    local pkgs_to_install=("$@")
+    if [ ${#pkgs_to_install[@]} -eq 0 ]; then
+        return
+    fi
+
+    if ! command_exists paru; then
+        ui_warn "AUR helper 'paru' not found. Skipping AUR packages: ${pkgs_to_install[*]}"
+        return 1
+    fi
+
+    ui_info "Installing ${#pkgs_to_install[@]} AUR packages..."
+    if [ "${DRY_RUN:-false}" = true ]; then
+        for pkg in "${pkgs_to_install[@]}"; do
+            ui_info "  - [DRY-RUN] Would install AUR package: $pkg"
+            INSTALLED_PACKAGES+=("$pkg (AUR)")
+        done
+        return
+    fi
+
+    if paru -S --noconfirm --needed "${pkgs_to_install[@]}" >> "$INSTALL_LOG" 2>&1; then
+        ui_success "AUR packages installed successfully."
+        for pkg in "${pkgs_to_install[@]}"; do INSTALLED_PACKAGES+=("$pkg (AUR)"); done
+    else
+        log_error "Failed to install some AUR packages."
+    fi
+}
+
 
 # ===== Summary and Cleanup =====
 
@@ -272,6 +301,7 @@ print_summary() {
 }
 
 prompt_reboot() {
+  local cleanup_dir="$1"
   echo ""
   ui_warn "It is strongly recommended to reboot now to apply all changes."
 
@@ -279,27 +309,29 @@ prompt_reboot() {
   if supports_gum; then
     gum confirm "Reboot now?" && reboot_ans="y" || reboot_ans="n"
   else
-      read -r -p "Reboot now? [Y/n]: " reboot_ans
+    read -r -p "Reboot now? [Y/n]: " reboot_ans
+  fi
+
+  # On successful installation, perform a self-cleanup.
+  if [ ${#ERRORS[@]} -eq 0 ]; then
+    ui_info "Performing self-cleanup..."
+    sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
+    rm -f "$INSTALL_LOG" 2>/dev/null || true
+    rm -f "$HOME/.cachyinstaller.state" 2>/dev/null || true # Cleanup old state files if they exist
+    # CAUTION: This removes the directory the script is in. This must be the last step.
+    if [ -n "$cleanup_dir" ] && [ -d "$cleanup_dir" ]; then
+      rm -rf "$cleanup_dir"
+    fi
   fi
 
   reboot_ans=${reboot_ans,,}
   case "$reboot_ans" in
     ""|y|yes)
       ui_info "Rebooting your system..."
-      # Cleanup if no errors occurred
-      if [ ${#ERRORS[@]} -eq 0 ]; then
-        sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
-        rm -f "$HOME/.cachyinstaller.state" 2>/dev/null || true
-      fi
       sudo reboot
       ;;
     *)
       ui_info "Reboot skipped. Please reboot manually."
-      # Cleanup if no errors occurred
-      if [ ${#ERRORS[@]} -eq 0 ]; then
-        sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
-        rm -f "$HOME/.cachyinstaller.state" 2>/dev/null || true
-      fi
       ;;
   esac
 }

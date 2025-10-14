@@ -3,9 +3,9 @@ set -uo pipefail
 
 setup_gaming_mode() {
 # --- User Confirmation ---
-# CachyOS is gaming-focused, but we should still ask, especially for minimal installs.
+# For minimal installs, ask the user if they want gaming components.
 if [ "${INSTALL_MODE}" = "minimal" ]; then
-    ui_info "The 'Gaming Setup' will install Steam, Lutris, graphics drivers, and other performance tools."
+    ui_info "The 'Gaming Setup' will install Steam, Lutris, and other performance tools."
 
     local confirm_gaming=false
     if [ "${DRY_RUN:-false}" = true ]; then
@@ -83,30 +83,7 @@ fi
 
 }
 
-# --- Helper for AUR packages (using paru) ---
-install_aur_packages() {
-    local pkgs_to_install=("$@")
-    if ! command_exists paru; then
-        ui_warn "AUR helper 'paru' not found. Skipping AUR packages: ${pkgs_to_install[*]}"
-        return 1
-    fi
 
-    ui_info "Installing ${#pkgs_to_install[@]} AUR packages..."
-    if [ "${DRY_RUN:-false}" = true ]; then
-        for pkg in "${pkgs_to_install[@]}"; do
-            ui_info "  - [DRY-RUN] Would install AUR package: $pkg"
-            INSTALLED_PACKAGES+=("$pkg (AUR)")
-        done
-        return
-    fi
-
-    if paru -S --noconfirm --needed "${pkgs_to_install[@]}" >> "$INSTALL_LOG" 2>&1; then
-        ui_success "AUR packages installed successfully."
-        for pkg in "${pkgs_to_install[@]}"; do INSTALLED_PACKAGES+=("$pkg (AUR)"); done
-    else
-        log_error "Failed to install some AUR packages."
-    fi
-}
 
 setup_gaming_mode
 return 0

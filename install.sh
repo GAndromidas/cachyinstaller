@@ -301,4 +301,4 @@ else
   ui_info "You can run the installer again to resume from the last successful step."
 fi
 
-prompt_reboot
+prompt_reboot "$SCRIPT_DIR"

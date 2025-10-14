@@ -48,29 +48,7 @@ remove_pacman_packages() {
   done
 }
 
-# Custom helper for AUR packages since CachyOS uses 'paru'.
-install_aur_packages() {
-    local pkgs=("$@")
-    if [ ${#pkgs[@]} -eq 0 ]; then
-        return
-    fi
-    ui_info "Installing ${#pkgs[@]} packages from the AUR..."
 
-    if [ "${DRY_RUN:-false}" = true ]; then
-        for pkg in "${pkgs[@]}"; do
-            ui_info "  - [DRY-RUN] Would install AUR package: $pkg"
-            INSTALLED_PACKAGES+=("$pkg (AUR)")
-        done
-        return
-    fi
-
-    if paru -S --noconfirm --needed "${pkgs[@]}" >> "$INSTALL_LOG" 2>&1; then
-        ui_success "AUR packages installed successfully."
-        for pkg in "${pkgs[@]}"; do INSTALLED_PACKAGES+=("$pkg (AUR)"); done
-    else
-        log_error "Failed to install some AUR packages. Check the log for details."
-    fi
-}
 
 # --- Main Logic ---
 

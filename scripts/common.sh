@@ -106,6 +106,18 @@ print_step_header() {
   fi
 }
 
+print_package_summary() {
+  local title="$1"
+  shift
+  local pkgs=("$@")
+
+  if [ ${#pkgs[@]} -gt 0 ]; then
+    echo ""
+    ui_info "$title:"
+    printf '%s\n' "${pkgs[@]}" | sed '/^$/d' | column | sed 's/^/  /'
+  fi
+}
+
 cachy_ascii() {
   echo -e "${CYAN}"
   cat << "EOF"
@@ -224,14 +236,14 @@ install_package_generic() {
     esac
 
     if [ "${DRY_RUN:-false}" = true ]; then
-      ui_info "[$current/$total] $pkg_name [DRY-RUN] Would execute: $install_cmd"
+      ui_info "[DRY-RUN] Would install: $pkg_name"
       INSTALLED_PACKAGES+=("$pkg_name")
     else
+      # Silently attempt to install the package.
+      # Errors will be collected and shown in the final summary.
       if eval "$install_cmd" >> "$INSTALL_LOG" 2>&1; then
-        $VERBOSE && ui_success "[$current/$total] $pkg_name [OK]"
         INSTALLED_PACKAGES+=("$pkg_name")
       else
-        ui_error "[$current/$total] $pkg_name [FAIL]"
         FAILED_PACKAGES+=("$pkg_name")
         log_error "Failed to install $pkg_name via $pkg_manager"
         ((failed++))

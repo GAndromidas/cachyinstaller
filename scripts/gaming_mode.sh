@@ -43,7 +43,7 @@ local flatpak_pkgs=("com.vysp3r.ProtonPlus")
 # --- Main Installation Logic ---
 
 # 1. Install Base Gaming Packages
-ui_info "Installing core gaming packages..."
+print_package_summary "Installing core gaming packages" "$cachyos_meta_pkg" "${fallback_pkgs[@]}"
 # Try the CachyOS meta package first for a cohesive experience.
 if ! install_packages_quietly "$cachyos_meta_pkg"; then
   ui_warn "CachyOS meta-package failed or was not found. Installing individual fallback packages..."
@@ -52,7 +52,7 @@ fi
 
 # Verify Lutris is installed
 if ! command_exists lutris; then
-  ui_warn "Lutris was not installed with the meta-package, installing it now..."
+  print_package_summary "Installing Lutris" "lutris"
   install_packages_quietly "lutris"
 fi
 
@@ -71,13 +71,15 @@ else
 fi
 
 # 3. Install AUR & Flatpak Packages
+print_package_summary "Installing gaming packages from the AUR" "${aur_pkgs[@]}"
 install_aur_packages "${aur_pkgs[@]}"
 
 if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
   if ! command_exists flatpak; then
-    ui_info "Installing Flatpak..."
+    print_package_summary "Installing Flatpak" "flatpak"
     install_packages_quietly flatpak || { log_error "Failed to install Flatpak, skipping packages."; return; }
   fi
+  print_package_summary "Installing gaming packages from Flatpak" "${flatpak_pkgs[@]}"
   install_flatpak_quietly "${flatpak_pkgs[@]}"
 fi
 

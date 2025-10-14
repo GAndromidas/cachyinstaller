@@ -50,6 +50,21 @@ remove_pacman_packages() {
 
 
 
+# --- UI Helper for this script ---
+print_package_summary() {
+  local title="$1"
+  shift
+  local pkgs=("$@")
+
+  if [ ${#pkgs[@]} -gt 0 ]; then
+    echo ""
+    ui_info "$title:"
+    # Use column to format the list nicely.
+    # The sed command removes empty lines that might result from filtering.
+    printf '%s\n' "${pkgs[@]}" | sed '/^$/d' | column | sed 's/^/  /'
+  fi
+}
+
 # --- Main Logic ---
 
 # 1. Verify YAML file and 'yq' dependency
@@ -59,13 +74,12 @@ if [[ ! -f "$PROGRAMS_YAML" ]]; then
 fi
 ensure_yq || return 1
 
-# 2. Load package lists based on installation mode
+# 2. Load all package lists
 ui_info "Loading package lists for '$INSTALL_MODE' mode..."
 mapfile -t pacman_base_pkgs < <(read_yaml_list ".pacman.packages")
 mapfile -t essential_pkgs < <(read_yaml_list ".essential.${INSTALL_MODE:-default}")
 mapfile -t aur_pkgs < <(read_yaml_list ".aur.${INSTALL_MODE:-default}")
 
-# 3. Detect Desktop Environment and load DE-specific packages
 de_lower="generic"
 case "${XDG_CURRENT_DESKTOP:-}" in
   KDE) de_lower="kde" ;;
@@ -73,36 +87,52 @@ case "${XDG_CURRENT_DESKTOP:-}" in
   COSMIC) de_lower="cosmic" ;;
 esac
 ui_info "Detected Desktop Environment: ${de_lower^}"
-
 mapfile -t de_install_pkgs < <(read_yaml_list ".desktop_environments.${de_lower}.install")
 mapfile -t de_remove_pkgs < <(read_yaml_list ".desktop_environments.${de_lower}.remove")
 mapfile -t flatpak_pkgs < <(read_yaml_list ".flatpak.${de_lower}.${INSTALL_MODE:-default}")
 
-# 4. Remove conflicting packages
-remove_pacman_packages "${de_remove_pkgs[@]}"
-
-# 5. Install Pacman packages
+# 3. Consolidate Pacman packages
 pacman_pkgs_to_install=(
   "${pacman_base_pkgs[@]}"
   "${essential_pkgs[@]}"
   "${de_install_pkgs[@]}"
 )
-# Filter out empty array elements
-pacman_pkgs_to_install=(${pacman_pkgs_to_install[@]})
-if [ ${#pacman_pkgs_to_install[@]} -gt 0 ]; then
-    install_packages_quietly "${pacman_pkgs_to_install[@]}"
-else
-    ui_info "No new Pacman packages to install."
+# Filter out empty/duplicate elements
+pacman_pkgs_to_install=($(echo "${pacman_pkgs_to_install[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+aur_pkgs=($(echo "${aur_pkgs[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+flatpak_pkgs=($(echo "${flatpak_pkgs[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+
+# 4. Display a summary of what will be installed
+print_header "Package Installation Summary"
+print_package_summary "The following packages will be installed from Pacman" "${pacman_pkgs_to_install[@]}"
+print_package_summary "The following packages will be installed from the AUR" "${aur_pkgs[@]}"
+print_package_summary "The following packages will be installed from Flatpak" "${flatpak_pkgs[@]}"
+
+if [ ${#pacman_pkgs_to_install[@]} -eq 0 ] && [ ${#aur_pkgs[@]} -eq 0 ] && [ ${#flatpak_pkgs[@]} -eq 0 ]; then
+  ui_success "No new packages to install."
+  return 0
 fi
 
-# 6. Install AUR packages
-if command_exists paru; then
-  install_aur_packages "${aur_pkgs[@]}"
-else
-  ui_warn "AUR helper 'paru' not found. Skipping AUR packages."
+if supports_gum; then
+  gum spin --spinner dot --title "Preparing for installation..." -- sleep 3
 fi
 
-# 7. Install Flatpak packages
+# 5. Remove conflicting packages first
+remove_pacman_packages "${de_remove_pkgs[@]}"
+
+# 6. Install Pacman packages
+install_packages_quietly "${pacman_pkgs_to_install[@]}"
+
+# 7. Install AUR packages
+if [ ${#aur_pkgs[@]} -gt 0 ]; then
+  if command_exists paru; then
+    install_aur_packages "${aur_pkgs[@]}"
+  else
+    ui_warn "AUR helper 'paru' not found. Skipping AUR packages."
+  fi
+fi
+
+# 8. Install Flatpak packages
 if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
     ui_info "Setting up Flatpak..."
     if ! command_exists flatpak; then
@@ -111,17 +141,14 @@ if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
     fi
 
     if [ "${DRY_RUN:-false}" = false ]; then
-        # Ensure flathub remote exists
         if ! flatpak remote-list | grep -q flathub; then
             flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >> "$INSTALL_LOG" 2>&1
             ui_info "Flathub remote added."
         fi
     else
-        ui_info "[DRY-RUN] Would ensure Flathub remote exists."
+        ui_info "[DRY_RUN] Would ensure Flathub remote exists."
     fi
     install_flatpak_quietly "${flatpak_pkgs[@]}"
-else
-    ui_info "No Flatpak packages selected for installation."
 fi
 
 return 0

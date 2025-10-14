@@ -5,12 +5,12 @@ setup_fail2ban() {
   ui_info "Setting up Fail2ban for SSH protection..."
 
 # --- Installation ---
-ui_info "Installing Fail2ban..."
-if ! install_packages_quietly "fail2ban"; then
+local fail2ban_pkg="fail2ban"
+print_package_summary "Installing security packages" "$fail2ban_pkg"
+if ! install_packages_quietly "$fail2ban_pkg"; then
   log_error "Failed to install Fail2ban. Aborting setup."
   return 1
 fi
-ui_success "Fail2ban installed."
 
 # --- Configuration ---
 JAIL_LOCAL_PATH="/etc/fail2ban/jail.local"

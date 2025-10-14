@@ -5,8 +5,9 @@ set -uo pipefail
 setup_firewall() {
   ui_info "Setting up UFW firewall..."
 
-  ui_info "Installing UFW..."
-  install_packages_quietly "ufw" || { log_error "Failed to install UFW."; return 1; }
+  local ufw_pkg="ufw"
+  print_package_summary "Installing firewall packages" "$ufw_pkg"
+  install_packages_quietly "$ufw_pkg" || { log_error "Failed to install UFW."; return 1; }
 
   ui_info "Enabling UFW firewall..."
   if [ "${DRY_RUN:-false}" = false ]; then

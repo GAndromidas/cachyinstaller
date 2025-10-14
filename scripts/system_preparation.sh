@@ -81,8 +81,9 @@ optimize_pacman() {
 # --- Main Execution ---
 NETWORK_SPEED=$(measure_download_speed)
 
-ui_info "Updating package keyrings..."
-install_packages_quietly archlinux-keyring cachyos-keyring || log_error "Failed to update essential keyrings."
+local keyring_pkgs=("archlinux-keyring" "cachyos-keyring")
+print_package_summary "Updating essential keyrings" "${keyring_pkgs[@]}"
+install_packages_quietly "${keyring_pkgs[@]}" || log_error "Failed to update essential keyrings."
 
 ui_info "Synchronizing package databases..."
 if [ "${DRY_RUN:-false}" = false ]; then

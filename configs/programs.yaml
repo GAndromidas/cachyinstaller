@@ -73,16 +73,12 @@ essential:
       description: "Video editing software"
     - name: "openrgb"
       description: "RGB lighting control software"
-    - name: "timeshift"
-      description: "System restore and backup tool"
     - name: "vlc"
       description: "Media player"
     - name: "vlc-plugins-all"
       description: "All VLC plugins (required for VLC functionality)"
 
   minimal:
-    - name: "timeshift"
-      description: "System restore and backup tool"
     - name: "vlc"
       description: "Media player"
     - name: "vlc-plugins-all"
@@ -111,8 +107,6 @@ aur:
       description: "Office suite with document, spreadsheet and presentation editors"
     - name: "rustdesk-bin"
       description: "Remote desktop software"
-    - name: "stremio"
-      description: "Media streaming platform"
 
 # Desktop environment specific packages
 desktop_environments:

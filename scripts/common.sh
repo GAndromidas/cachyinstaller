@@ -7,6 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
+NC='\033[0m'
 
 # Global arrays and variables
 ERRORS=()                   # Collects error messages for summary

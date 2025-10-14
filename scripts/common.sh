@@ -47,7 +47,7 @@ ui_info() {
     gum style --foreground 226 "$message"
   else
     echo -e "${YELLOW}$message${RESET}"
-  fi | tee -a "$INSTALL_LOG"
+  fi | tee -a "$INSTALL_LOG" >&2
 }
 
 ui_success() {
@@ -56,7 +56,7 @@ ui_success() {
     gum style --foreground 46 "$message"
   else
     echo -e "${GREEN}$message${RESET}"
-  fi | tee -a "$INSTALL_LOG"
+  fi | tee -a "$INSTALL_LOG" >&2
 }
 
 ui_warn() {
@@ -65,7 +65,7 @@ ui_warn() {
     gum style --foreground 226 "$message"
   else
     echo -e "${YELLOW}$message${RESET}"
-  fi | tee -a "$INSTALL_LOG"
+  fi | tee -a "$INSTALL_LOG" >&2
 }
 
 ui_error() {
@@ -74,7 +74,7 @@ ui_error() {
     gum style --foreground 196 "$message"
   else
     echo -e "${RED}$message${RESET}"
-  fi | tee -a "$INSTALL_LOG"
+  fi | tee -a "$INSTALL_LOG" >&2
 }
 
 print_header() {

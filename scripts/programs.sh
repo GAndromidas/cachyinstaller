@@ -10,8 +10,8 @@ PROGRAMS_YAML="$CONFIGS_DIR/programs.yaml"
 ensure_yq() {
   if ! command_exists yq; then
     ui_info "YAML processor 'yq' is not installed. Installing it now..."
-    install_packages_quietly yq || {
-      log_error "Failed to install 'yq'. This is a critical dependency for package management."
+    install_packages_quietly go-yq || {
+      log_error "Failed to install 'go-yq'. This is a critical dependency for package management."
       return 1
     }
   fi

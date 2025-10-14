@@ -40,28 +40,7 @@ local intel_pkgs=("lib32-vulkan-intel" "vulkan-intel" "lib32-mesa" "mesa")
 local aur_pkgs=("proton-cachyos" "heroic-games-launcher-bin")
 local flatpak_pkgs=("com.vysp3r.ProtonPlus")
 
-# --- Helper for AUR packages (using paru) ---
-install_aur_packages() {
-    local pkgs_to_install=("$@")
-    if ! command_exists paru; then
-        ui_warn "AUR helper 'paru' not found. Skipping AUR packages: ${pkgs_to_install[*]}"
-        return 1
-    fi
 
-    ui_info "Installing ${#pkgs_to_install[@]} AUR packages..."
-    if [ "${DRY_RUN:-false}" = true ]; then
-        for pkg in "${pkgs_to_install[@]}"; do
-            ui_info "  - [DRY-RUN] Would install AUR package: $pkg"
-        done
-        return
-    fi
-
-    if paru -S --noconfirm --needed "${pkgs_to_install[@]}" >> "$INSTALL_LOG" 2>&1; then
-        ui_success "AUR packages installed successfully."
-    else
-        log_error "Failed to install some AUR packages."
-    fi
-}
 
 # --- Main Installation Logic ---
 
@@ -107,6 +86,29 @@ fi
 install_aur_packages "${aur_pkgs[@]}"
 install_flatpak_quietly "${flatpak_pkgs[@]}"
 
+}
+
+# --- Helper for AUR packages (using paru) ---
+install_aur_packages() {
+    local pkgs_to_install=("$@")
+    if ! command_exists paru; then
+        ui_warn "AUR helper 'paru' not found. Skipping AUR packages: ${pkgs_to_install[*]}"
+        return 1
+    fi
+
+    ui_info "Installing ${#pkgs_to_install[@]} AUR packages..."
+    if [ "${DRY_RUN:-false}" = true ]; then
+        for pkg in "${pkgs_to_install[@]}"; do
+            ui_info "  - [DRY-RUN] Would install AUR package: $pkg"
+        done
+        return
+    fi
+
+    if paru -S --noconfirm --needed "${pkgs_to_install[@]}" >> "$INSTALL_LOG" 2>&1; then
+        ui_success "AUR packages installed successfully."
+    else
+        log_error "Failed to install some AUR packages."
+    fi
 }
 
 setup_gaming_mode

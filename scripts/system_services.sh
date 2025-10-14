@@ -1,126 +1,147 @@
 #!/bin/bash
 set -uo pipefail
 
-# CachyOS System Services Configuration - Simplified
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
-# common.sh is sourced by install.sh, no need to source again here.
-
-setup_firewall_and_services() {
-  step "Setting up firewall and essential services"
-
-  # UFW firewall setup
-  if ! pacman -Q ufw &>/dev/null; then
-    log_info "Ensuring UFW firewall is installed..."
-    if install_package "ufw"; then
-      log_success "UFW installed."
-    else
-      log_error "Failed to install UFW. Firewall setup aborted."
-      return 1
-    fi
-  fi
-
-  # Reset UFW rules only if not already active to avoid disrupting existing custom rules
-  if ! sudo ufw status | grep -q "Status: active"; then
-    log_info "Resetting UFW firewall rules to default."
-    sudo ufw --force reset &>/dev/null
+# --- Function to setup UFW Firewall ---
+setup_firewall() {
+  local confirm_ufw=false
+  ui_info "UFW is a simple firewall. It's recommended for most users."
+  if [ "${DRY_RUN:-false}" = true ]; then
+      ui_info "[DRY-RUN] Would ask to install and enable UFW."
+      confirm_ufw=true
+  elif supports_gum; then
+      gum confirm "Setup and enable UFW firewall?" && confirm_ufw=true
   else
-    log_info "UFW is already active. Skipping forced reset to preserve existing rules."
-  fi
-  sudo ufw --force enable &>/dev/null
-  log_success "UFW firewall enabled."
-
-  # Collect services to enable
-  local services=("ufw.service" "fstrim.timer" "systemd-timesyncd.service")
-
-  # SSH service if openssh is installed
-  if pacman -Q openssh &>/dev/null; then
-    services+=(sshd.service)
+      read -r -p "Setup and enable UFW firewall? [y/N]: " response
+      [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]] && confirm_ufw=true
   fi
 
-  # Bluetooth service if hardware detected and bluez installed
-  if [[ -d /sys/class/bluetooth ]] && [[ -n "$(ls -A /sys/class/bluetooth 2>/dev/null)" ]] && pacman -Q bluez &>/dev/null; then
-    services+=(bluetooth.service)
+  if ! $confirm_ufw; then
+      ui_warn "Skipping UFW firewall setup."
+      return
   fi
 
-  # Cronie service if installed
-  if pacman -Q cronie &>/dev/null; then
-    services+=(cronie.service)
-  fi
+  ui_info "Installing UFW..."
+  install_packages_quietly "ufw" || { log_error "Failed to install UFW."; return 1; }
 
-  # TLP for laptops if installed
-  if [[ -d /sys/class/power_supply ]] && ls /sys/class/power_supply/BAT* &>/dev/null 2>&1 && pacman -Q tlp &>/dev/null; then
-    services+=(tlp.service)
+  ui_info "Enabling UFW firewall..."
+  if [ "${DRY_RUN:-false}" = false ]; then
+    # Reset to defaults to ensure a clean slate, then enable.
+    sudo ufw --force reset >/dev/null 2>&1
+    sudo ufw default deny incoming >/dev/null 2>&1
+    sudo ufw default allow outgoing >/dev/null 2>&1
+    if sudo ufw --force enable >> "$INSTALL_LOG" 2>&1; then
+      ui_success "UFW firewall is now active."
+    else
+      log_error "Failed to enable UFW."
+    fi
+  else
+    ui_info "[DRY-RUN] Would enable the UFW firewall."
   fi
+}
 
-  # Enable services that aren't already enabled
-  local services_to_enable=()
-  for svc in "${services[@]}"; do
-    if ! systemctl is-enabled "$svc" >/dev/null 2>&1; then
-      services_to_enable+=("$svc")
+# --- Function to enable essential system services ---
+setup_essential_services() {
+  ui_info "Checking and enabling essential system services..."
+  declare -A services
+  services=(
+    ["fstrim.timer"]="SSD trimming for performance"
+    ["systemd-timesyncd.service"]="Network time synchronization"
+    ["sshd.service"]="SSH server (if installed)"
+    ["bluetooth.service"]="Bluetooth support (if hardware exists)"
+    ["cronie.service"]="Cron job scheduler (if installed)"
+    ["tlp.service"]="Power management for laptops (if installed and applicable)"
+  )
+
+  for service in "${!services[@]}"; do
+    local reason=${services[$service]}
+    local should_enable=false
+    local is_enabled=false
+    [ "${DRY_RUN:-false}" = false ] && systemctl is-enabled "$service" >/dev/null 2>&1 && is_enabled=true
+
+    case "$service" in
+      "sshd.service")
+        command_exists sshd && should_enable=true
+        ;;
+      "bluetooth.service")
+        # Check for bluetooth hardware directory
+        [ -d /sys/class/bluetooth ] && should_enable=true
+        ;;
+      "tlp.service")
+        # IS_LAPTOP is exported from system_preparation.sh
+        [ "${IS_LAPTOP:-false}" = true ] && pacman -Q tlp &>/dev/null && should_enable=true
+        ;;
+      "cronie.service")
+        pacman -Q cronie &>/dev/null && should_enable=true
+        ;;
+      *)
+        should_enable=true # For fstrim, timesync
+        ;;
+    esac
+
+    if $should_enable && ! $is_enabled; then
+      if [ "${DRY_RUN:-false}" = false ]; then
+        if sudo systemctl enable --now "$service" >> "$INSTALL_LOG" 2>&1; then
+          ui_info "  - Enabled: $service ($reason)"
+        else
+          log_error "Failed to enable $service"
+        fi
+      else
+        ui_info "  - [DRY-RUN] Would enable: $service ($reason)"
+      fi
     fi
   done
-
-
-  if [[ ${#services_to_enable[@]} -gt 0 ]]; then
-    log_info "Enabling services: ${services_to_enable[*]}"
-    for svc in "${services_to_enable[@]}"; do
-      if sudo systemctl enable --now "$svc"; then
-        log_success "Enabled and started service: $svc"
-      else
-        log_error "Failed to enable/start service: $svc"
-      fi
-    done
-    log_success "Enabled ${#services_to_enable[@]} system services in total."
-  else
-    log_success "All necessary system services are already enabled."
-  fi
+  ui_success "Essential services checked."
 }
 
-setup_desktop_tweaks() {
-  step "Setting up desktop environment tweaks"
+# --- Function to apply Desktop Environment Tweaks ---
+apply_desktop_tweaks() {
+    if [[ "${XDG_CURRENT_DESKTOP}" != "KDE" ]]; then
+        # Currently, only KDE tweaks are implemented.
+        return
+    fi
 
-  case "$XDG_CURRENT_DESKTOP" in
-    KDE)
-      log_info "Applying KDE Plasma configurations..."
-      local kde_shortcut_file="$HOME/.config/kglobalshortcutsrc"
-      # Backup existing global shortcuts if they exist
-      if [[ -f "$kde_shortcut_file" ]]; then
-        local timestamp=$(date +%Y%m%d_%H%M%S)
-        log_info "Backing up existing KDE global shortcuts to ${kde_shortcut_file}.cachyos.backup.${timestamp}"
-        cp "$kde_shortcut_file" "${kde_shortcut_file}.cachyos.backup.${timestamp}"
-      fi
+    local confirm_kde_tweaks=false
+    ui_info "KDE-specific tweaks are available, such as custom keyboard shortcuts for applications."
+    if [ "${DRY_RUN:-false}" = true ]; then
+        ui_info "[DRY-RUN] Would ask to apply KDE global shortcuts."
+        confirm_kde_tweaks=true
+    elif supports_gum; then
+        gum confirm "Apply custom KDE global shortcuts?" && confirm_kde_tweaks=true
+    else
+        read -r -p "Apply custom KDE global shortcuts? [y/N]: " response
+        [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]] && confirm_kde_tweaks=true
+    fi
 
-      # Copy KDE global shortcuts from config
-      if [[ -f "$CONFIGS_DIR/kglobalshortcutsrc" ]]; then
-        mkdir -p "$(dirname "$kde_shortcut_file")" # Ensure target directory exists for the user
-        cp "$CONFIGS_DIR/kglobalshortcutsrc" "$kde_shortcut_file"
-        log_success "KDE global shortcuts applied (will be active after next login or Plasma restart)"
-      else
-        log_warning "KDE global shortcuts configuration file not found at $CONFIGS_DIR/kglobalshortcutsrc. Skipping."
-      fi
-      ;;
-    GNOME)
-      log_info "Applying GNOME configurations. No specific tweaks implemented yet."
-      # GNOME specific tweaks can be added here in the future.
-      ;;
-    COSMIC)
-      log_info "Applying COSMIC configurations. No specific tweaks implemented yet."
-      # COSMIC specific tweaks can be added here in the future.
-      ;;
-    *)
-      log_info "No specific desktop environment tweaks for '${XDG_CURRENT_DESKTOP:-unknown}'. Skipping."
-      ;;
-  esac
+    if ! $confirm_kde_tweaks; then
+        ui_warn "Skipping KDE tweaks."
+        return
+    fi
 
-  log_success "Desktop environment tweaks completed"
+    local kde_shortcut_file="$HOME/.config/kglobalshortcutsrc"
+    local config_shortcut_file="$CONFIGS_DIR/kglobalshortcutsrc"
+
+    if [ -f "$config_shortcut_file" ]; then
+        ui_info "Applying KDE global shortcuts..."
+        if [ "${DRY_RUN:-false}" = false ]; then
+            # Backup existing file before overwriting
+            if [ -f "$kde_shortcut_file" ]; then
+                mv "$kde_shortcut_file" "${kde_shortcut_file}.bak"
+                ui_info "  - Backed up existing shortcuts to ${kde_shortcut_file}.bak"
+            fi
+            cp "$config_shortcut_file" "$kde_shortcut_file"
+            ui_success "KDE shortcuts applied. They will be active after you log out and back in."
+        else
+            ui_info "[DRY-RUN] Would copy custom shortcuts to $kde_shortcut_file"
+        fi
+    else
+        ui_warn "KDE shortcuts file not found in configs directory. Skipping."
+    fi
 }
 
-# Main execution
-log_info "Starting CachyOS system services configuration..."
 
-setup_firewall_and_services
-setup_desktop_tweaks
+# --- Main Execution ---
+setup_firewall
+setup_essential_services
+apply_desktop_tweaks
 
-log_success "System services configuration completed"
+return 0

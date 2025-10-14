@@ -1,423 +1,327 @@
-#!/usr/bin/env bash
+#!/bin/bash
+set -uo pipefail
 
-# Colors for terminal output
-RED='\033[38;5;196m'      # Bright red
-GREEN='\033[38;5;46m'     # Bright green
-YELLOW='\033[38;5;226m'   # Bright yellow
-BLUE='\033[38;5;39m'      # Bright blue
-CYAN='\033[38;5;51m'      # Bright cyan
-WHITE='\033[38;5;255m'    # Bright white
-BOLD='\033[1m'
-DIM='\033[2m'
+# Color variables for output formatting
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 RESET='\033[0m'
 
-# Global arrays for tracking
-declare -a INSTALLED_PACKAGES
-declare -a ERRORS
-declare -a WARNINGS
-export INSTALLED_PACKAGES
-export ERRORS
-export WARNINGS
+# Global arrays and variables
+ERRORS=()                   # Collects error messages for summary
+INSTALLED_PACKAGES=()       # Tracks installed packages
+FAILED_PACKAGES=()          # Tracks packages that failed to install
 
-# Utility functions
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+# UI/Flow configuration
+TOTAL_STEPS=7
+: "${VERBOSE:=false}"   # Can be overridden/exported by caller
+
+# Ensure critical variables are defined
+: "${HOME:=/home/$USER}"
+: "${USER:=$(whoami)}"
+: "${INSTALL_LOG:=$HOME/.cachyinstaller.log}"
+
+# ===== Logging Functions =====
+
+# Function to save log on exit
+save_log_on_exit() {
+  {
+    echo ""
+    echo "=========================================="
+    echo "Installation ended: $(date)"
+    echo "=========================================="
+  } >> "$INSTALL_LOG"
 }
 
-run_step() {
-    local description="$1"
-    shift
-    echo -e "\n>> $description..."
-    if "$@"; then
-        return 0
-    else
-        log_error "Failed to execute: $description"
-        return 1
-    fi
+# ===== UI Helper Functions =====
+
+supports_gum() {
+  command -v gum >/dev/null 2>&1
 }
 
-install_packages_quietly() {
-    local failed=0
-    for pkg in "$@"; do
-        if ! install_package "$pkg"; then
-            ((failed++))
-        fi
-        # Add small delay for readability
-        sleep 0.1
-    done
-    return $failed
-}
-
-show_installation_summary() {
-    echo -e "\n${CYAN}Installation Summary:${RESET}"
-    echo -e "Packages installed: ${#INSTALLED_PACKAGES[@]}"
-    echo -e "Warnings: ${#WARNINGS[@]}"
-    echo -e "Errors: ${#ERRORS[@]}"
-
-    if [ ${#INSTALLED_PACKAGES[@]} -gt 0 ]; then
-        echo -e "\n${GREEN}Successfully installed packages:${RESET}"
-        printf '%s\n' "${INSTALLED_PACKAGES[@]}" | sort
-    fi
-
-    if [ ${#ERRORS[@]} -gt 0 ]; then
-        echo -e "\n${RED}Errors encountered:${RESET}"
-        printf '%s\n' "${ERRORS[@]}"
-    fi
-}
-
-# Helper utilities that should be installed first
-HELPER_UTILS=(\
-    "base-devel"\
-    "flatpak"\
-    "git"\
-    "curl"\
-    "wget"\
-    "rsync"\
-    "gum"\
-    "ufw"\
-    "cronie"\
-    "fzf"\
-    "zoxide"\
-    "starship"\
-)
-
-# Logging functions
-log_error() {
-    ERRORS+=("$1")
-    echo -e "${BOLD}${RED}==> ERROR:${RESET} $1" | tee -a "$INSTALL_LOG"
-}
-
-log_warning() {
-    WARNINGS+=("$1")
-    echo -e "${BOLD}${YELLOW}==> WARNING:${RESET} $1" | tee -a "$INSTALL_LOG"
-}
-
-log_success() {
-    echo -e "${BOLD}${GREEN}==> SUCCESS:${RESET} $1" | tee -a "$INSTALL_LOG"
-}
-
-log_info() {
-    echo -e "${BOLD}${BLUE}==>${RESET} $1" | tee -a "$INSTALL_LOG"
-}
-
-# UI helper functions
 ui_info() {
-    if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 39 "ℹ $1"
-    else
-        echo -e "${BLUE}ℹ $1${RESET}"
-    fi
+  local message="$1"
+  if supports_gum; then
+    gum style --foreground 226 "$message"
+  else
+    echo -e "${YELLOW}$message${RESET}"
+  fi | tee -a "$INSTALL_LOG"
 }
 
 ui_success() {
-    if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 82 "✓ $1"
-    else
-        echo -e "${GREEN}✓ $1${RESET}"
-    fi
-}
-
-ui_error() {
-    if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 196 "✗ $1"
-    else
-        echo -e "${RED}✗ $1${RESET}"
-    fi
+  local message="$1"
+  if supports_gum; then
+    gum style --foreground 46 "$message"
+  else
+    echo -e "${GREEN}$message${RESET}"
+  fi | tee -a "$INSTALL_LOG"
 }
 
 ui_warn() {
-    if command -v gum >/dev/null 2>&1; then
-        gum style --foreground 178 "⚠ $1"
-    else
-        echo -e "${YELLOW}⚠ $1${RESET}"
-    fi
+  local message="$1"
+  if supports_gum; then
+    gum style --foreground 226 "$message"
+  else
+    echo -e "${YELLOW}$message${RESET}"
+  fi | tee -a "$INSTALL_LOG"
 }
 
-# Progress tracking
-START_TIME=$(date +%s)
-
-log_performance() {
-    local end_time=$(date +%s)
-    local duration=$((end_time - START_TIME))
-    local minutes=$((duration / 60))
-    local seconds=$((duration % 60))
-    echo -e "\n${CYAN}$1: ${minutes}m ${seconds}s${RESET}" | tee -a "$INSTALL_LOG"
-}
-
-print_step_header() {
-    local current_step="$1"
-    local total_steps="$2"
-    local description="$3"
-    echo -e "\n${BOLD}${BLUE}:: ${WHITE}Step ${current_step}/${total_steps}: ${description}${RESET}"
-    echo -e "${DIM}───────────────────────────────────────────────────${RESET}"
+ui_error() {
+  local message="$1"
+  if supports_gum; then
+    gum style --foreground 196 "$message"
+  else
+    echo -e "${RED}$message${RESET}"
+  fi | tee -a "$INSTALL_LOG"
 }
 
 print_header() {
-    local title="$1"
-    shift
-    echo -e "\n${BOLD}${WHITE}╭───────────────────────────────────────────────────╮${RESET}"
-    echo -e "${BOLD}${WHITE}│${RESET} ${CYAN}${title}${RESET}"
-    for line in "$@"; do
-        echo -e "${BOLD}${WHITE}│${RESET} ${DIM}${line}${RESET}"
+  local title="$1"; shift
+  if supports_gum; then
+    gum style --border double --margin "1 2" --padding "1 4" --foreground 51 --border-foreground 51 "$title"
+    while (( "$#" )); do
+      gum style --margin "1 0 0 0" --foreground 226 "$1"
+      shift
     done
-    echo -e "${BOLD}${WHITE}╰───────────────────────────────────────────────────╯${RESET}\n"
+  else
+    echo -e "${CYAN}----------------------------------------------------------------${RESET}"
+    echo -e "${CYAN}$title${RESET}"
+    echo -e "${CYAN}----------------------------------------------------------------${RESET}"
+    while (( "$#" )); do
+      echo -e "${YELLOW}$1${RESET}"
+      shift
+    done
+  fi
 }
+
+print_step_header() {
+  local step_num="$1"; local total="$2"; local title="$3"
+  echo ""
+  if supports_gum; then
+    gum style --border normal --margin "1 0" --padding "0 2" --foreground 51 --border-foreground 51 "Step ${step_num}/${total}: ${title}"
+  else
+    echo -e "${CYAN}Step ${step_num}/${total}: ${title}${RESET}"
+  fi
+}
+
+cachy_ascii() {
+  echo -e "${CYAN}"
+  cat << "EOF"
+   ____           _           ___           _        _ _
+  / ___|__ _  ___| |__  _   _|_ _|_ __  ___| |_ __ _| | | ___ _ __
+ | |   / _` |/ __| '_ \| | | || || '_ \/ __| __/ _` | | |/ _ \ '__|
+ | |__| (_| | (__| | | | |_| || || | | \__ \ || (_| | | |  __/ |
+  \____\__,_|\___|_| |_|\__, |___|_| |_|___/\__\__,_|_|_|\___|_|
+                        |___/
+EOF
+  echo -e "${NC}"
+}
+
+show_menu() {
+  if supports_gum; then
+    show_gum_menu
+  else
+    show_traditional_menu
+  fi
+}
+
+show_gum_menu() {
+  gum style --margin "1 0" --foreground 226 "This script will enhance your CachyOS installation with additional"
+  gum style --margin "0 0 1 0" --foreground 226 "tools, security, and performance optimizations."
+
+  local choice
+  choice=$(gum choose --cursor="-> " --selected.foreground 51 --cursor.foreground 51 \
+    "Standard - Complete setup with all recommended packages" \
+    "Minimal - Essential tools only for a lightweight system" \
+    "Custom - Interactive selection (choose what to install)" \
+    "Exit - Cancel installation")
+
+  case "$choice" in
+    "Standard"*)
+      INSTALL_MODE="default"
+      ui_success "Selected: Standard installation"
+      ;;
+    "Minimal"*)
+      INSTALL_MODE="minimal"
+      ui_success "Selected: Minimal installation"
+      ;;
+    "Custom"*)
+      INSTALL_MODE="custom"
+      ui_warn "Selected: Custom installation"
+      ;;
+    "Exit"*)
+      ui_info "Installation cancelled."
+      exit 0
+      ;;
+  esac
+}
+
+show_traditional_menu() {
+  echo -e "${CYAN}Choose your installation mode:${RESET}"
+  echo "  1) Standard - Complete setup with all recommended packages"
+  echo "  2) Minimal - Essential tools only for a lightweight system"
+  echo "  3) Custom - Interactive selection (choose what to install)"
+  echo "  4) Exit - Cancel installation"
+
+  local menu_choice
+  while true; do
+    read -r -p "Enter your choice [1-4]: " menu_choice
+    case "$menu_choice" in
+      1) INSTALL_MODE="default"; ui_success "Selected: Standard"; break ;;
+      2) INSTALL_MODE="minimal"; ui_success "Selected: Minimal"; break ;;
+      3) INSTALL_MODE="custom"; ui_warn "Selected: Custom"; break ;;
+      4) ui_info "Installation cancelled."; exit 0 ;;
+      *) ui_error "Invalid choice! Please enter 1, 2, 3, or 4." ;;
+    esac
+  done
+}
+
+# ===== Step and Logging Functions =====
 
 step() {
-    local step_name="$1"
-    echo -e "\\n${BOLD}${BLUE}==> ${WHITE}${step_name}...${RESET}"
+  echo -e "\n${CYAN}> $1${RESET}" | tee -a "$INSTALL_LOG"
 }
 
-figlet_banner() {
-    local text="$1"
-    if command -v figlet >/dev/null 2>&1; then
-        echo -e "\\n${CYAN}"
-        figlet -c -t "$text"
-        echo -e "${RESET}"
-    fi
+log_error() {
+  echo -e "${RED}Error: $1${RESET}" | tee -a "$INSTALL_LOG"
+  ERRORS+=("$1")
 }
 
-# Package management functions
-package_installed() {
-    pacman -Qi "$1" &>/dev/null
-}
+# ===== Package Management =====
 
-install_package() {
-    local package="$1"
-    local retries=3
-    local retry_delay=5
-    local i=1
+install_package_generic() {
+  local pkg_manager="$1"
+  shift
+  local pkgs=("$@")
+  local total=${#pkgs[@]}
+  local current=0
+  local failed=0
 
-    # Check if it's a helper utility
-    for util in "${HELPER_UTILS[@]}"; do
-        if [[ "$package" == "$util" ]]; then
-            log_info "Installing helper utility: $package..."
-            if sudo pacman -S --noconfirm --needed "$package" >/dev/null 2>&1; then
-                INSTALLED_PACKAGES+=("$package")
-                log_success "Successfully installed helper utility: $package"
-                return 0
-            fi
-        fi
-    done
-
-    if ! package_installed "$package"; then
-        log_info "Installing $package..."
-
-        while [ $i -le $retries ]; do
-            local pacman_output=""
-            if pacman_output=$(sudo pacman -S --noconfirm --needed "$package" 2>&1); then
-                if pacman -Q "$package" &>/dev/null; then
-                    INSTALLED_PACKAGES+=("$package")
-                    log_success "Successfully installed $package"
-                    return 0
-                else
-                    log_warning "Package $package install succeeded but verification failed. Pacman output: $pacman_output"
-                fi
-            fi
-
-            if [ $i -lt $retries ]; then
-                log_warning "Failed to install $package (attempt $i/$retries). Retrying in ${retry_delay}s... Pacman output: $pacman_output"
-                sleep $retry_delay
-                # Clear package manager locks if they exist
-                sudo rm -f /var/lib/pacman/db.lck
-            else
-                log_error "Failed to install $package after $retries attempts. Pacman output: $pacman_output"
-                return 1
-            fi
-            ((i++))
-        done
-    else
-        log_info "Package $package is already installed"
-        return 0
-    fi
-}
-
-install_packages() {
-    local success=true
-    for package in "$@"; do
-        if ! install_package "$package"; then
-            success=false
-        fi
-    done
-    $success
-}
-
-# Function to update mirrorlist using rate-mirrors or reflector
-update_mirrors() {
-    step "Updating mirrorlist"
-
-    if command_exists rate-mirrors; then
-        sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch
-        log_info "Synchronizing pacman databases and updating system..."
-        sudo pacman -Syyu --noconfirm # Perform full sync and update
-        log_success "Mirrorlist updated successfully with rate-mirrors"
-    else
-        log_warning "rate-mirrors not found, using reflector instead"
-        if command_exists reflector; then
-            sudo reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
-            log_info "Synchronizing pacman databases and updating system..."
-            sudo pacman -Syyu --noconfirm # Perform full sync and update
-            log_success "Mirrorlist updated successfully with reflector"
-        else
-            log_error "Neither rate-mirrors nor reflector found for mirrorlist update"
-            return 1
-        fi
-    fi
+  if [ $total -eq 0 ]; then
     return 0
-}
+  fi
 
-# DE detection
-detect_desktop_environment() {
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
-        echo "$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
-        echo "$DESKTOP_SESSION"
-    elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "x11"; then
-        echo "X11" # Fallback for unknown X11 DEs
-    elif command_exists loginctl && loginctl show-session $(loginctl | grep $(whoami) | awk '{print $1}') -p Type | grep -q "wayland"; then
-        echo "WAYLAND" # Fallback for unknown Wayland DEs
-    else
-        echo "UNKNOWN"
+  ui_info "Installing ${total} packages via ${pkg_manager}..."
+
+  for pkg in "${pkgs[@]}"; do
+    ((current++))
+    local pkg_name
+    pkg_name=$(echo "$pkg" | awk '{print $1}')
+
+    local already_installed=false
+    case "$pkg_manager" in
+      pacman) pacman -Q "$pkg_name" &>/dev/null && already_installed=true ;;
+      flatpak) flatpak list | grep -q "$pkg_name" &>/dev/null && already_installed=true ;;
+    esac
+
+    if [ "$already_installed" = true ]; then
+      $VERBOSE && ui_info "[$current/$total] $pkg_name [SKIP] Already installed"
+      continue
     fi
-}
 
-# Install helper utilities first
-install_helper_utils() {
-    local all_success=true
-    log_info "Installing core helper utilities..."
-    for util in "${HELPER_UTILS[@]}"; do
-        if ! install_package "$util"; then
-            all_success=false
-        fi
-        # A small delay for better console output readability, even for helpers
-        sleep 0.1
-    done
-    if [ "$all_success" = true ]; then
-        log_success "All core helper utilities installed."
-        return 0
+    $VERBOSE && ui_info "[$current/$total] Installing $pkg_name..."
+
+    local install_cmd
+    case "$pkg_manager" in
+      pacman) install_cmd="sudo pacman -S --noconfirm --needed $pkg" ;;
+      flatpak) install_cmd="flatpak install --noninteractive -y $pkg" ;;
+    esac
+
+    if [ "${DRY_RUN:-false}" = true ]; then
+      ui_info "[$current/$total] $pkg_name [DRY-RUN] Would execute: $install_cmd"
+      INSTALLED_PACKAGES+=("$pkg_name")
     else
-        log_error "Some core helper utilities failed to install. Check log for details."
-        return 1
+      if eval "$install_cmd" >> "$INSTALL_LOG" 2>&1; then
+        $VERBOSE && ui_success "[$current/$total] $pkg_name [OK]"
+        INSTALLED_PACKAGES+=("$pkg_name")
+      else
+        ui_error "[$current/$total] $pkg_name [FAIL]"
+        FAILED_PACKAGES+=("$pkg_name")
+        log_error "Failed to install $pkg_name via $pkg_manager"
+        ((failed++))
+      fi
     fi
+  done
+
+  if [ $failed -eq 0 ]; then
+    return 0
+  else
+    return 1
+  fi
 }
 
-# Menu functions
-show_menu() {
-    if command -v gum >/dev/null 2>&1; then
-        # Show styled header with gum
-        gum style --border double --margin "1 2" --padding "1 4" --foreground 51 "CachyOS Post-Installation Enhancement"
-        gum style --margin "1 0" --foreground 226 "Choose your installation mode:"
-
-        # Installation mode selection using gum
-        choice=$(gum choose \
-            "Default - Complete gaming setup with all optimizations" \
-            "Minimal - Essential gaming setup with core features" \
-            "Exit - Cancel installation" \
-            --cursor.foreground="99" \
-            --selected.foreground="99" \
-            --cursor-prefix="▶ " \
-            --selected-prefix="✓ " \
-            --unselected-prefix="  ")
-
-        case "$choice" in
-            "Default"*)
-                export INSTALL_MODE="default"
-                gum style --foreground 51 "✓ Selected: Default installation"
-                ;;
-            "Minimal"*)
-                export INSTALL_MODE="minimal"
-                gum style --foreground 46 "✓ Selected: Minimal installation"
-                ;;
-            "Exit"*)
-                gum style --foreground 196 "Installation cancelled by user"
-                exit 0
-                ;;
-        esac
-    else
-        # Fallback to traditional menu
-        echo -e "╔══════════════════════════════════╗"
-        echo -e "║     CachyOS Gaming Installer     ║"
-        echo -e "╚══════════════════════════════════╝\n"
-
-        echo "1) Default    - Complete gaming setup with all optimizations"
-        echo "2) Minimal    - Essential gaming setup with core features"
-        echo "3) Exit       - Cancel installation"
-        echo
-
-        while true; do
-            read -p "Choose installation mode (1-3): " choice
-            case $choice in
-                1)
-                    INSTALL_MODE="default"
-                    break
-                    ;;
-                2)
-                    INSTALL_MODE="minimal"
-                    break
-                    ;;
-                3)
-                    echo -e "\n${YELLOW}Installation cancelled.${RESET}"
-                    exit 0
-                    ;;
-                *)
-                    echo -e "${RED}Invalid choice. Please select 1-3${RESET}"
-                    ;;
-            esac
-        done
-    fi
+install_packages_quietly() {
+  install_package_generic "pacman" "$@"
 }
+
+install_flatpak_quietly() {
+  if ! command -v flatpak &>/dev/null; then
+    log_error "Flatpak not found. Cannot install Flatpak packages."
+    return 1
+  fi
+  install_package_generic "flatpak" "$@"
+}
+
+
+# ===== Summary and Cleanup =====
 
 print_summary() {
-    echo -e "\n${CYAN}Installation Summary:${RESET}"
-    echo -e "${BLUE}Packages installed:${RESET} ${#INSTALLED_PACKAGES[@]}"
-    echo -e "${YELLOW}Warnings:${RESET} ${#WARNINGS[@]}"
-    echo -e "${RED}Errors:${RESET} ${#ERRORS[@]}"
+  echo ""
+  ui_warn "=== INSTALL SUMMARY ==="
+  [ "${#INSTALLED_PACKAGES[@]}" -gt 0 ] && echo -e "${GREEN}Installed: ${#INSTALLED_PACKAGES[@]} packages${RESET}"
+  [ "${#FAILED_PACKAGES[@]}" -gt 0 ] && echo -e "${RED}Failed: ${#FAILED_PACKAGES[@]} packages${RESET}"
+  [ "${#ERRORS[@]}" -gt 0 ] && echo -e "${RED}Errors: ${#ERRORS[@]} occurred${RESET}"
+  ui_warn "======================="
+  echo ""
 }
 
-save_log_on_exit() {
-    log_performance "Total runtime"
-    {
-        echo -e "\nFinal Status:"
-        echo "Packages installed: ${#INSTALLED_PACKAGES[@]}"
-        echo "Warnings: ${#WARNINGS[@]}"
-        echo "Errors: ${#ERRORS[@]}"
-        echo -e "\nInstallation ended: $(date)"
-    } >> "$INSTALL_LOG"
-}
-
-# Function to prompt for reboot
 prompt_reboot() {
-  if [ "$DRY_RUN" = true ]; then
-    log_info "Dry-run mode: Skipping reboot prompt."
-    return 0
+  echo ""
+  ui_warn "It is strongly recommended to reboot now to apply all changes."
+
+  local reboot_ans
+  if supports_gum; then
+    gum confirm "Reboot now?" && reboot_ans="y" || reboot_ans="n"
+  else
+      read -r -p "Reboot now? [Y/n]: " reboot_ans
   fi
 
-  ui_info "Installation complete. A reboot is recommended to apply all changes."
-  if command -v gum >/dev/null 2>&1; then
-    choice=$(gum choose "Reboot Now" "Reboot Later")
-    if [[ "$choice" == "Reboot Now" ]]; then
-      log_info "Rebooting system now..."
+  reboot_ans=${reboot_ans,,}
+  case "$reboot_ans" in
+    ""|y|yes)
+      ui_info "Rebooting your system..."
+      # Cleanup if no errors occurred
+      if [ ${#ERRORS[@]} -eq 0 ]; then
+        sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
+        rm -f "$HOME/.cachyinstaller.state" 2>/dev/null || true
+      fi
       sudo reboot
-    else
-      log_info "Reboot postponed. Please reboot manually when convenient."
-    fi
-  else
-    read -p "$(echo -e "${CYAN}Installation complete. Reboot now? (y/N): ${RESET}")" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-      log_info "Rebooting system now..."
-      sudo reboot
-    else
-      log_info "Reboot postponed. Please reboot manually when convenient."
-    fi
-  fi
+      ;;
+    *)
+      ui_info "Reboot skipped. Please reboot manually."
+      # Cleanup if no errors occurred
+      if [ ${#ERRORS[@]} -eq 0 ]; then
+        sudo pacman -Rns --noconfirm gum >/dev/null 2>&1 || true
+        rm -f "$HOME/.cachyinstaller.state" 2>/dev/null || true
+      fi
+      ;;
+  esac
 }
 
-# Export functions and variables
-export -f log_error log_warning log_success log_info figlet_banner
-export -f ui_info ui_success ui_error ui_warn
-export -f install_package install_packages package_installed install_helper_utils
-export -f print_step_header print_header step
-export -f detect_desktop_environment show_menu print_summary update_mirrors save_log_on_exit prompt_reboot
-export INSTALLED_PACKAGES ERRORS WARNINGS
-export RED GREEN YELLOW BLUE CYAN RESET
+
+# ===== Performance and Utility =====
+
+log_performance() {
+  local step_name="$1"
+  local current_time
+  current_time=$(date +%s)
+  local elapsed=$((current_time - START_TIME))
+  local minutes=$((elapsed / 60))
+  local seconds=$((elapsed % 60))
+  ui_info "$step_name completed in ${minutes}m ${seconds}s."
+}
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}

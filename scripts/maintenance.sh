@@ -38,6 +38,64 @@ system_cleanup() {
   ui_success "System cleanup complete."
 }
 
+# --- Function to setup GRUB for btrfs snapshots ---
+setup_grub_btrfs() {
+  ui_info "Checking for GRUB-Btrfs integration..."
+
+  # 1. Check if GRUB is the bootloader
+  if [ ! -d /boot/grub ] && [ ! -f /etc/default/grub ]; then
+    ui_info "GRUB not detected. Skipping GRUB-Btrfs setup."
+    return 0
+  fi
+
+  ui_info "GRUB detected. Configuring for Btrfs snapshots..."
+
+  # 2. Install grub-btrfs if not installed
+  if ! pacman -Q grub-btrfs &>/dev/null; then
+    ui_info "Installing 'grub-btrfs' for snapshot visibility in boot menu..."
+    if command_exists paru; then
+        if [ "${DRY_RUN:-false}" = false ]; then
+            if paru -S --noconfirm grub-btrfs >> "$INSTALL_LOG" 2>&1; then
+                ui_success "'grub-btrfs' installed successfully."
+            else
+                log_error "Failed to install 'grub-btrfs' via paru. Please install it manually."
+                return 1
+            fi
+        else
+            ui_info "[DRY_RUN] Would install 'grub-btrfs' using paru."
+        fi
+    else
+        log_error "AUR helper 'paru' not found. Cannot install 'grub-btrfs'."
+        ui_warn "Please install 'grub-btrfs' manually to see snapshots in GRUB."
+        return 1
+    fi
+  fi
+
+  # 3. Configure /etc/default/grub to show snapshots in the main menu
+  ui_info "Configuring GRUB to show Btrfs snapshots in the main menu..."
+  if [ "${DRY_RUN:-false}" = false ]; then
+    if grep -q '^GRUB_BTRFS_SUBMENU=' /etc/default/grub; then
+        sudo sed -i 's/^GRUB_BTRFS_SUBMENU=.*/GRUB_BTRFS_SUBMENU=n/' /etc/default/grub
+    else
+        echo 'GRUB_BTRFS_SUBMENU=n' | sudo tee -a /etc/default/grub >/dev/null
+    fi
+  else
+      ui_info "[DRY_RUN] Would set GRUB_BTRFS_SUBMENU=n in /etc/default/grub."
+  fi
+
+  # 4. Regenerate grub config
+  ui_info "Regenerating GRUB configuration to include snapshots..."
+  if [ "${DRY_RUN:-false}" = false ]; then
+    if sudo grub-mkconfig -o /boot/grub/grub.cfg >> "$INSTALL_LOG" 2>&1; then
+        ui_success "GRUB configuration regenerated successfully."
+    else
+        log_error "Failed to regenerate GRUB configuration."
+    fi
+  else
+    ui_info "[DRY_RUN] Would run 'grub-mkconfig -o /boot/grub/grub.cfg'."
+  fi
+}
+
 # --- Function for Btrfs Snapshot Setup ---
 setup_btrfs_snapshots() {
   # Check if the root filesystem is btrfs
@@ -120,6 +178,9 @@ setup_btrfs_snapshots() {
   # 4. snap-pac is hook-based, so just installing it is enough. No manual hook creation needed.
   ui_success "Btrfs snapshot setup is complete."
   ui_info "Snapshots will now be taken automatically before and after pacman transactions."
+
+  # Configure GRUB for snapshot visibility
+  setup_grub_btrfs
 }
 
 

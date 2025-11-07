@@ -80,7 +80,7 @@ Sets up the modern and user-friendly **Fish shell** with the **Starship** prompt
 Installs applications from the `programs.yaml` file based on your chosen mode (Standard/Minimal) and your detected desktop environment (KDE, GNOME, etc.). It handles packages from the official repositories, the AUR, and Flatpak.
 
 #### ✔️ Step 4: Gaming Mode
-Offers a comprehensive gaming setup by installing a curated list of essential tools from `configs/gaming_mode.yaml`. This includes Steam, GameMode, MangoHud, and Wine. It also installs modern game launchers like Heroic Games Launcher and Faugus Launcher via Flatpak for a seamless experience. The script will always ask for your confirmation before installing any gaming-related packages.
+Offers a comprehensive gaming setup by installing the official `cachyos-gaming-meta` package, which provides a cohesive, high-performance CachyOS gaming experience. The script also installs other essential tools like Discord, OBS Studio, and Wine, and modern game launchers like Heroic Games Launcher and Faugus Launcher via Flatpak. This hybrid approach ensures you get the best of the CachyOS optimizations while guaranteeing all your favorite applications are present. The script will always ask for your confirmation before installing any gaming-related packages.
 
 #### ✔️ Step 5: Security Hardening
 Automatically installs, configures, and enables the **UFW firewall** and **Fail2ban** (for SSH brute-force protection).

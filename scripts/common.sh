@@ -118,6 +118,62 @@ print_package_summary() {
   fi
 }
 
+# Function to display a styled header for summaries
+# Usage: ui_header "My Header"
+ui_header() {
+    local title="$1"
+    if supports_gum; then
+        gum style --border normal --margin "1 2" --padding "1 2" --align center "$title"
+    else
+        echo ""
+        echo -e "${CYAN}### ${title} ###${RESET}"
+        echo ""
+    fi
+}
+
+# Function for user confirmation with gum (or fallback)
+# Usage: gum_confirm "Your question?" "Optional description."
+gum_confirm() {
+    local question="$1"
+    local description="${2:-}" # Default to empty string if not provided
+
+    if supports_gum; then
+        # Use gum for a nice UI
+        if [ -n "$description" ]; then
+            gum style --foreground 226 "$description"
+        fi
+
+        if gum confirm --default=true "$question"; then
+            return 0 # User said yes
+        else
+            return 1 # User said no
+        fi
+    else
+        # Fallback to traditional read prompt
+        echo ""
+        if [ -n "$description" ]; then
+            echo -e "${YELLOW}${description}${RESET}"
+        fi
+
+        local response
+        while true; do
+            read -r -p "$(echo -e "${CYAN}${question} [Y/n]: ${RESET}")" response
+            response=${response,,} # tolower
+            case "$response" in
+                ""|y|yes)
+                    return 0 # Yes
+                    ;;
+                n|no)
+                    return 1 # No
+                    ;;
+                *)
+                    echo -e "\n${RED}Please answer Y (yes) or N (no).${RESET}\n"
+                    ;;
+            esac
+        done
+    fi
+}
+
 cachy_ascii() {
   echo -e "${CYAN}"
   cat << "EOF"

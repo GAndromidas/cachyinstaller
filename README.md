@@ -56,13 +56,13 @@ Getting your CachyOS system set up is simple.
 
 ## ➤ Installation Modes
 
-You will be prompted to choose one of two installation modes.
+You will be prompted to choose one of two installation modes for general applications. The optional Gaming Mode setup is offered separately after this choice.
 
 ### Standard Mode (Recommended)
-This is the fully automated "do everything" option. It installs a complete suite of applications and enhancements for a feature-rich desktop experience, including the full gaming setup.
+This is the fully automated "do everything" option. It installs a complete suite of applications and enhancements for a feature-rich desktop experience.
 
 ### Minimal Mode
-This provides a lightweight setup with only essential tools. It will pause **once** to ask for your confirmation (`Y/n`) before installing the gaming-related packages, giving you control over your minimal installation.
+This provides a lightweight setup with only essential tools, perfect for users who prefer a smaller base to build upon.
 
 ---
 
@@ -80,7 +80,7 @@ Sets up the modern and user-friendly **Fish shell** with the **Starship** prompt
 Installs applications from the `programs.yaml` file based on your chosen mode (Standard/Minimal) and your detected desktop environment (KDE, GNOME, etc.). It handles packages from the official repositories, the AUR, and Flatpak.
 
 #### ✔️ Step 4: Gaming Mode
-Installs the `cachyos-gaming-meta` package to provide the official, high-performance CachyOS gaming experience.
+Offers a comprehensive gaming setup by installing a curated list of essential tools from `configs/gaming_mode.yaml`. This includes Steam, GameMode, MangoHud, and Wine. It also installs modern game launchers like Heroic Games Launcher and Faugus Launcher via Flatpak for a seamless experience. The script will always ask for your confirmation before installing any gaming-related packages.
 
 #### ✔️ Step 5: Security Hardening
 Automatically installs, configures, and enables the **UFW firewall** and **Fail2ban** (for SSH brute-force protection).
@@ -95,7 +95,9 @@ Cleans all package manager caches (`pacman`, `paru`, `flatpak`) to free up valua
 
 ## ➤ Customization
 
-The heart of CachyInstaller's flexibility is the `configs/programs.yaml` file. You can easily add or remove packages from the `default` and `minimal` sections to perfectly tailor the installation to your needs before running the script.
+The heart of CachyInstaller's flexibility lies in its configuration files. You can easily add or remove packages to perfectly tailor the installation to your needs before running the script:
+-   **`configs/programs.yaml`**: Manages packages for the `Standard` and `Minimal` installation modes.
+-   **`configs/gaming_mode.yaml`**: Manages all packages for the optional Gaming Mode setup.
 
 ---
 

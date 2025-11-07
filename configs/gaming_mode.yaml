@@ -1,0 +1,34 @@
+# Packages for CachyOS Gaming Mode
+
+pacman:
+  packages:
+    - name: cachyos-gaming-meta
+      description: "The official CachyOS meta-package for a complete gaming setup."
+    - name: discord
+      description: "Voice, video, and text communication service."
+    - name: gamemode
+      description: "Optimize system performance on demand for games."
+    - name: lib32-gamemode
+      description: "32-bit libraries for GameMode."
+    - name: lib32-mangohud
+      description: "32-bit libraries for MangoHud."
+    - name: mangohud
+      description: "Vulkan/OpenGL overlay for monitoring FPS, temps, and load."
+    - name: obs-studio
+      description: "Software for video recording and live streaming."
+    - name: wine
+      description: "Run Windows applications on Linux."
+
+aur:
+  packages:
+    - name: proton-cachyos
+      description: "A custom Proton build with CachyOS optimizations."
+
+flatpak:
+  apps:
+    - name: com.heroicgameslauncher.hgl
+      description: "Open source launcher for GOG and Epic Games."
+    - name: com.vysp3r.ProtonPlus
+      description: "Manager for Proton-GE and other compatibility tools for Steam."
+    - name: io.github.Faugus.faugus-launcher
+      description: "Launcher for modded Bethesda games (replaces Lutris)."

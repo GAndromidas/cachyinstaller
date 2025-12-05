@@ -67,22 +67,16 @@ essential:
   default:
     - name: "filezilla"
       description: "FTP client for file transfers"
-    - name: "gimp"
-      description: "GNU Image Manipulation Program"
     - name: "kdenlive"
       description: "Video editing software"
-    - name: "openrgb"
-      description: "RGB lighting control software"
-    - name: "vlc"
-      description: "Media player"
-    - name: "vlc-plugins-all"
-      description: "All VLC plugins (required for VLC functionality)"
+    - name: "solaar"
+      description: "Device manager for Logitech's Unifying Receiver peripherals"
+    - name: "zed"
+      description: "High-performance multiplayer code editor"
 
   minimal:
-    - name: "vlc"
+    - name: "mpv"
       description: "Media player"
-    - name: "vlc-plugins-all"
-      description: "All VLC plugins (required for VLC functionality)"
 
 # AUR packages for different installation modes (using paru - CachyOS default)
 aur:
@@ -95,8 +89,6 @@ aur:
       description: "Remote desktop software"
     - name: "spotify"
       description: "Music streaming service"
-    - name: "stremio"
-      description: "Media streaming platform"
     - name: "ventoy-bin"
       description: "Tool to create bootable USB drives for ISO files"
     - name: "via-bin"
@@ -117,11 +109,11 @@ desktop_environments:
       - "kwalletmanager"
       - "kvantum"
       - "okular"
-      - "power-profiles-daemon"
       - "python-pyqt5"
       - "python-pyqt6"
       - "qbittorrent"
       - "spectacle"
+      - "smplayer"
     remove:
       - "htop"
       - "haruna"
@@ -147,7 +139,7 @@ desktop_environments:
 
   cosmic:
     install:
-      - "power-profiles-daemon"
+      - "celluloid"
       - "transmission-gtk"
     remove:
       - "htop"

@@ -5,19 +5,21 @@ pacman:
     - name: cachyos-gaming-meta
       description: "The official CachyOS meta-package for a complete gaming setup."
     - name: discord
-      description: "Voice, video, and text communication service."
+      description: "Voice and text chat for gamers"
     - name: gamemode
-      description: "Optimize system performance on demand for games."
+      description: "GameMode daemon for performance optimization"
     - name: lib32-gamemode
-      description: "32-bit libraries for GameMode."
-    - name: lib32-mangohud
-      description: "32-bit libraries for MangoHud."
+      description: "32-bit GameMode libraries"
+    - name: goverlay
+      description: "Gaming overlay for performance monitoring"
     - name: mangohud
-      description: "Vulkan/OpenGL overlay for monitoring FPS, temps, and load."
-    - name: obs-studio
-      description: "Software for video recording and live streaming."
+      description: "Vulkan/OpenGL overlay for monitoring FPS and more"
+    - name: lib32-mangohud
+      description: "32-bit MangoHud libraries"
+    - name: steam
+      description: "Digital distribution platform for games"
     - name: wine
-      description: "Run Windows applications on Linux."
+      description: "Compatibility layer for running Windows applications"
 
 aur:
   packages:

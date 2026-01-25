@@ -9,10 +9,6 @@
   A simple, robust, and professional post-installation script designed to enhance your CachyOS system. It respects CachyOS defaults, runs unattended after your initial choice, and cleans up after itself, leaving your system perfectly configured and ready to use.
 </p>
 
-<div align="center">
-
-<img width="820" height="444" alt="Screenshot_20250918_081412" src="https://github.com/user-attachments/assets/bb676b34-ae3f-4625-b8c9-7338c116c85e" />
-
 </div>
 
 ---

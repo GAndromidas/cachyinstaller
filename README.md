@@ -30,7 +30,7 @@ Getting your CachyOS system set up is simple.
 
 1.  **Clone the Repository**
     ```bash
-    git clone https://github.com/your-username/cachyinstaller.git
+    git clone https://github.com/GAndromidas/cachyinstaller.git
     ```
 
 2.  **Navigate to the Directory**

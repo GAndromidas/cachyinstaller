@@ -32,10 +32,10 @@ pacman_install() {
 	fi
 }
 
-yay_install() {
+paru_install() {
 	local pkg="$1"
 	printf "${CYAN}Installing AUR package:${RESET} %-30s" "$pkg"
-	if yay -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
+	if paru -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
 		printf "${GREEN} ✓ Success${RESET}\n"
 		return 0
 	else
@@ -116,11 +116,11 @@ install_pacman_packages() {
 }
 
 install_aur_packages() {
-	if ! command -v yay >/dev/null; then ui_warn "yay is not installed. Skipping AUR packages."; return; fi
+	if ! command -v paru >/dev/null; then ui_warn "paru is not installed. Skipping AUR packages."; return; fi
 	if [[ ${#aur_gaming_programs[@]} -eq 0 ]]; then ui_info "No AUR packages to install."; return; fi
-	ui_info "Installing ${#aur_gaming_programs[@]} AUR packages with yay..."
+	ui_info "Installing ${#aur_gaming_programs[@]} AUR packages with paru..."
 	for pkg in "${aur_gaming_programs[@]}"; do
-		if yay_install "$pkg"; then GAMING_INSTALLED+=("$pkg (AUR)"); else GAMING_ERRORS+=("$pkg (AUR)"); fi
+		if paru_install "$pkg"; then GAMING_INSTALLED+=("$pkg (AUR)"); else GAMING_ERRORS+=("$pkg (AUR)"); fi
 	done
 }
 
@@ -183,7 +183,7 @@ print_summary() {
 # ===== Main Execution =====
 main() {
 	step "Gaming Mode Setup"
-	figlet_banner "Gaming Mode"
+	ui_header "Gaming Mode"
 
 	local description="This includes popular tools like Steam, Wine, GameMode, MangoHud, Heroic Games Launcher, Faugus Launcher and more."
 	if ! gum_confirm "Enable Gaming Mode?" "$description"; then

@@ -81,7 +81,7 @@ optimize_pacman() {
 # --- Main Execution ---
 NETWORK_SPEED=$(measure_download_speed)
 
-local keyring_pkgs=("archlinux-keyring" "cachyos-keyring")
+keyring_pkgs=("archlinux-keyring" "cachyos-keyring")
 print_package_summary "Updating essential keyrings" "${keyring_pkgs[@]}"
 install_packages_quietly "${keyring_pkgs[@]}" || log_error "Failed to update essential keyrings."
 

@@ -21,11 +21,6 @@ pacman:
     - name: wine
       description: "Compatibility layer for running Windows applications"
 
-aur:
-  packages:
-    - name: proton-cachyos
-      description: "A custom Proton build with CachyOS optimizations."
-
 flatpak:
   apps:
     - name: com.heroicgameslauncher.hgl

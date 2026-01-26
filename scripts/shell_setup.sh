@@ -22,18 +22,47 @@ mkdir -p "$FASTFETCH_CONFIG_DIR"
 
 
 # --- Install Fish & Starship Configuration ---
-ui_info "Applying default Fish and Starship configurations if none exist..."
+ui_info "Applying Fish and Starship configurations..."
 if [ "${DRY_RUN:-false}" = false ]; then
-  if [ ! -f "$FISH_CONFIG_DIR/config.fish" ]; then
-    cp "$CONFIGS_DIR/fish/config.fish" "$FISH_CONFIG_DIR/config.fish"
-    ui_info "  - Default fish config installed."
+  # Determine which config source to use (priority: cachyos-fish-config > user-fish-config > default)
+  if [ -d "$CONFIGS_DIR/cachyos-fish-config" ]; then
+    FISH_SOURCE="$CONFIGS_DIR/cachyos-fish-config"
+    ui_info "  - Using CachyOS custom fish config."
+  elif [ -d "$CONFIGS_DIR/user-fish-config" ]; then
+    FISH_SOURCE="$CONFIGS_DIR/user-fish-config"
+    ui_info "  - Using user-defined fish config."
+  else
+    FISH_SOURCE="$CONFIGS_DIR/fish"
+    ui_info "  - Using default fish config."
   fi
-  if [ ! -f "$FISH_CONFIG_DIR/starship.toml" ]; then
-    cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
-    ui_info "  - Default starship config installed."
+
+  # Deploy config.fish
+  if [ ! -f "$FISH_CONFIG_DIR/config.fish" ] || [ "$FISH_SOURCE" != "$CONFIGS_DIR/fish" ]; then
+    if [ -f "$FISH_SOURCE/config.fish" ]; then
+      cp "$FISH_SOURCE/config.fish" "$FISH_CONFIG_DIR/config.fish"
+      ui_info "  - Fish config installed from $FISH_SOURCE."
+    fi
+  fi
+
+  # Deploy starship.toml
+  if [ ! -f "$FISH_CONFIG_DIR/starship.toml" ] || [ "$FISH_SOURCE" != "$CONFIGS_DIR/fish" ]; then
+    if [ -f "$FISH_SOURCE/starship.toml" ]; then
+      cp "$FISH_SOURCE/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
+      ui_info "  - Starship config installed from $FISH_SOURCE."
+    elif [ -f "$CONFIGS_DIR/fish/starship.toml" ]; then
+      cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
+      ui_info "  - Default starship config installed."
+    fi
+  fi
+
+  # Deploy conf.d files if they exist in the source
+  if [ -d "$FISH_SOURCE/conf.d" ]; then
+    mkdir -p "$FISH_CONFIG_DIR/conf.d"
+    cp "$FISH_SOURCE/conf.d"/* "$FISH_CONFIG_DIR/conf.d/" 2>/dev/null && \
+      ui_info "  - conf.d files installed from $FISH_SOURCE."
   fi
 else
-  ui_info "[DRY-RUN] Would copy default configs if they do not exist."
+  ui_info "[DRY-RUN] Would copy Fish configs from priority source if needed."
 fi
 
 # --- Install Fastfetch Configuration ---

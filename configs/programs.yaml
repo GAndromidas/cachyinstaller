@@ -3,199 +3,184 @@
 # Pacman packages (same for all installation modes)
 pacman:
   packages:
-    - name: "android-tools"
-      description: "Android development and debugging tools"
-    - name: "bat"
-      description: "Enhanced cat command with syntax highlighting"
-    - name: "bleachbit"
-      description: "System cleaner and privacy tool"
-    - name: "btop"
-      description: "Resource monitor and process viewer"
-    - name: "chromium"
-      description: "Open-source web browser"
-    - name: "cmatrix"
-      description: "Matrix-style terminal screensaver"
-    - name: "cpupower"
-      description: "CPU frequency and power management utilities"
-    - name: "dosfstools"
-      description: "DOS filesystem utilities"
-    - name: "duf"
-      description: "Disk Usage/Free Utility"
-    - name: "expac"
-      description: "Pacman database extraction utility"
-    - name: "firefox"
+    - name: android-tools
+      description: "Android platform tools for device management"
+    - name: bat
+      description: "Cat clone with syntax highlighting"
+    - name: bleachbit
+      description: "System cleaner and optimizer"
+    - name: btop
+      description: "Resource monitor"
+    - name: chromium
       description: "Web browser"
-    - name: "fwupd"
+    - name: cmatrix
+      description: "Matrix-style terminal animation"
+    - name: cpupower
+      description: "CPU frequency scaling tools"
+    - name: dosfstools
+      description: "DOS filesystem utilities"
+    - name: duf
+      description: "Disk usage utility"
+    - name: firefox
+      description: "Web browser"
+    - name: fwupd
       description: "Firmware update daemon"
-    - name: "gnome-disk-utility"
+    - name: gnome-disk-utility
       description: "Disk management utility"
-    - name: "hwinfo"
+    - name: hwinfo
       description: "Hardware information tool"
-    - name: "inxi"
+    - name: inxi
       description: "System information script"
-    - name: "nano"
-      description: "Simple command-line text editor"
-    - name: "ncdu"
-      description: "Disk usage analyzer with interactive interface"
-    - name: "net-tools"
-      description: "Network utilities (ifconfig, netstat, etc.)"
-    - name: "nmap"
-      description: "Network scanner and security auditing tool"
-    - name: "noto-fonts-extra"
-      description: "Additional Google Noto fonts"
-    - name: "ntfs-3g"
-      description: "NTFS filesystem driver for external drives"
-    - name: "samba"
-      description: "Windows file sharing compatibility"
-    - name: "sl"
+    - name: ncdu
+      description: "NCurses disk usage analyzer"
+    - name: net-tools
+      description: "Network configuration tools"
+    - name: nmap
+      description: "Network discovery and security auditing"
+    - name: noto-fonts-extra
+      description: "Additional Noto fonts"
+    - name: samba
+      description: "SMB/CIFS file and print server"
+    - name: sl
       description: "Steam locomotive animation"
-    - name: "speedtest-cli"
-      description: "Command line speedtest tool"
-    - name: "sshfs"
-      description: "SSH filesystem client"
-    - name: "ttf-hack-nerd"
-      description: "Hack font with Nerd Fonts icons"
-    - name: "ttf-liberation"
-      description: "Liberation font family"
-    - name: "unrar"
+    - name: speedtest-cli
+      description: "Internet speed test tool"
+    - name: sshfs
+      description: "FUSE-based SSH filesystem"
+    - name: ttf-hack-nerd
+      description: "Hack Nerd Font"
+    - name: ttf-liberation
+      description: "Liberation fonts"
+    - name: unrar
       description: "RAR archive extractor"
-    - name: "xdg-desktop-portal-gtk"
-      description: "GTK portal for desktop integration"
+    - name: wakeonlan
+      description: "Wake-on-LAN utility"
+    - name: xdg-desktop-portal-gtk
+      description: "GTK backend for XDG Desktop Portal"
 
 # Essential packages for different installation modes
 essential:
   default:
-    - name: "filezilla"
+    - name: filezilla
       description: "FTP client for file transfers"
-    - name: "gimp"
+    - name: gimp
       description: "GNU Image Manipulation Program"
-    - name: "kdenlive"
-      description: "Video editing software"
-    - name: "openrgb"
-      description: "RGB lighting control software"
-    - name: "vlc"
-      description: "Media player"
-    - name: "vlc-plugins-all"
-      description: "All VLC plugins (required for VLC functionality)"
+    - name: kdenlive
+      description: "Video editor for KDE"
+    - name: solaar
+      description: "Logitech device manager"
+    - name: zed
+      description: "High-performance code editor"
 
   minimal:
-    - name: "vlc"
+    - name: mpv
       description: "Media player"
-    - name: "vlc-plugins-all"
-      description: "All VLC plugins (required for VLC functionality)"
 
 # AUR packages for different installation modes (using paru - CachyOS default)
 aur:
   default:
-    - name: "dropbox"
+    - name: dropbox
       description: "Cloud storage and file synchronization"
-    - name: "onlyoffice-bin"
-      description: "Office suite with document, spreadsheet and presentation editors"
-    - name: "rustdesk-bin"
+    - name: onlyoffice-bin
+      description: "Office suite for document editing"
+    - name: rustdesk-bin
       description: "Remote desktop software"
-    - name: "spotify"
-      description: "Music streaming service"
-    - name: "stremio"
-      description: "Media streaming platform"
-    - name: "ventoy-bin"
-      description: "Tool to create bootable USB drives for ISO files"
-    - name: "via-bin"
-      description: "VIA keyboard configuration tool"
+    - name: spotify
+      description: "Music streaming client"
+    - name: ventoy-bin
+      description: "Bootable USB creation tool"
+    - name: via-bin
+      description: "Keyboard configuration utility"
 
   minimal:
-    - name: "onlyoffice-bin"
-      description: "Office suite with document, spreadsheet and presentation editors"
-    - name: "rustdesk-bin"
+    - name: onlyoffice-bin
+      description: "Office suite for document editing"
+    - name: rustdesk-bin
       description: "Remote desktop software"
 
 # Desktop environment specific packages
 desktop_environments:
   kde:
     install:
-      - "gwenview"
-      - "kdeconnect"
-      - "kwalletmanager"
-      - "kvantum"
-      - "okular"
-      - "power-profiles-daemon"
-      - "python-pyqt5"
-      - "python-pyqt6"
-      - "qbittorrent"
-      - "spectacle"
+      - gwenview
+      - kdeconnect
+      - kwalletmanager
+      - kvantum
+      - okular
+      - python-pyqt5
+      - python-pyqt6
+      - qbittorrent
+      - spectacle
+      - smplayer
     remove:
-      - "htop"
-      - "haruna"
+      - htop
+      - haruna
 
   gnome:
     install:
-      - "adw-gtk-theme"
-      - "celluloid"
-      - "dconf-editor"
-      - "gnome-tweaks"
-      - "gufw"
-      - "seahorse"
-      - "transmission-gtk"
+      - adw-gtk-theme
+      - celluloid
+      - dconf-editor
+      - gnome-tweaks
+      - gufw
+      - seahorse
+      - transmission-gtk
     remove:
-      - "epiphany"
-      - "gnome-contacts"
-      - "gnome-maps"
-      - "gnome-music"
-      - "gnome-tour"
-      - "htop"
-      - "snapshot"
-      - "totem"
+      - epiphany
+      - gnome-contacts
+      - gnome-maps
+      - gnome-music
+      - gnome-tour
+      - htop
+      - snapshot
 
   cosmic:
     install:
-      - "power-profiles-daemon"
-      - "transmission-gtk"
+      - transmission-gtk
     remove:
-      - "htop"
+      - htop
 
 # Flatpak packages for different desktop environments
 flatpak:
   kde:
     default:
-      - name: "io.github.shiftey.Desktop"
-        description: "Desktop environment"
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
+      - name: io.github.shiftey.Desktop
+        description: "Shiftey Desktop application"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
     minimal:
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
-
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
   gnome:
     default:
-      - name: "com.mattjakeman.ExtensionManager"
-        description: "GNOME Extension Manager"
-      - name: "io.github.shiftey.Desktop"
-        description: "Desktop environment"
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
+      - name: com.mattjakeman.ExtensionManager
+        description: "GNOME Shell extension manager"
+      - name: io.github.shiftey.Desktop
+        description: "Shiftey Desktop application"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
     minimal:
-      - name: "com.mattjakeman.ExtensionManager"
-        description: "GNOME Extension Manager"
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
-
+      - name: com.mattjakeman.ExtensionManager
+        description: "GNOME Shell extension manager"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
   cosmic:
     default:
-      - name: "dev.edfloreshz.CosmicTweaks"
-        description: "System settings and tweaks"
-      - name: "io.github.shiftey.Desktop"
-        description: "Desktop environment"
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
+      - name: io.github.shiftey.Desktop
+        description: "Shiftey Desktop application"
+      - name: dev.edfloreshz.CosmicTweaks
+        description: "Tweaks and customization for Cosmic desktop"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
     minimal:
-      - name: "dev.edfloreshz.CosmicTweaks"
-        description: "System settings and tweaks"
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
-
-  generic:
+      - name: dev.edfloreshz.CosmicTweaks
+        description: "Tweaks and customization for Cosmic desktop"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
+  generic: # Fallback for unsupported DEs/WMs
     default:
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"
     minimal:
-      - name: "it.mijorus.gearlever"
-        description: "System tray application launcher"
+      - name: it.mijorus.gearlever
+        description: "Graphical package manager for Flatpak"

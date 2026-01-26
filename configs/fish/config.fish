@@ -22,7 +22,7 @@ set -gx STARSHIP_SHELL "fish"
 
 alias sync='sudo pacman -Syy'                                                      # Sync package databases
 alias update='paru -Syyu && sudo flatpak update'                                  # Update all packages
-alias mirror='sudo rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch && sudo pacman -Syy'  # Update mirrors
+alias mirror='sudo cachyos-rate-mirrors --allow-root --save /etc/pacman.d/mirrorlist arch && sudo pacman -Syy'  # Update mirrors
 alias clean='sudo pacman -Sc --noconfirm && paru -Sc --noconfirm && sudo flatpak uninstall --unused && sudo pacman -Rns --noconfirm (pacman -Qtdq 2>/dev/null)'  # Clean packages
 alias cache='rm -rf ~/.cache/* && sudo paccache -r'                               # Clear cache
 alias microcode='grep . /sys/devices/system/cpu/vulnerabilities/*'                # CPU vulnerabilities

@@ -156,15 +156,6 @@ configure_mangohud() {
 	fi
 }
 
-enable_gamemode() {
-	step "Enabling GameMode service"
-	if systemctl --user daemon-reload &>/dev/null && systemctl --user enable --now gamemoded &>/dev/null; then
-		log_success "GameMode service enabled and started successfully."
-	else
-		log_warning "Failed to enable or start GameMode service. It may require manual configuration."
-	fi
-}
-
 # ===== Summary =====
 print_summary() {
 	echo ""
@@ -199,7 +190,6 @@ main() {
 	install_aur_packages
 	install_flatpak_packages
 	configure_mangohud
-	enable_gamemode
 	print_summary
 	ui_success "Gaming Mode setup completed."
 }

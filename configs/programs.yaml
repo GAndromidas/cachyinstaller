@@ -63,14 +63,12 @@ essential:
   default:
     - name: filezilla
       description: "FTP client for file transfers"
-    - name: gimp
-      description: "GNU Image Manipulation Program"
     - name: kdenlive
       description: "Video editor for KDE"
+    - name: libreoffice-fresh
+      description: "Full-featured office suite"
     - name: solaar
       description: "Logitech device manager"
-    - name: zed
-      description: "High-performance code editor"
 
   minimal:
     - name: mpv
@@ -81,8 +79,6 @@ aur:
   default:
     - name: dropbox
       description: "Cloud storage and file synchronization"
-    - name: onlyoffice-bin
-      description: "Office suite for document editing"
     - name: rustdesk-bin
       description: "Remote desktop software"
     - name: spotify
@@ -93,8 +89,6 @@ aur:
       description: "Keyboard configuration utility"
 
   minimal:
-    - name: onlyoffice-bin
-      description: "Office suite for document editing"
     - name: rustdesk-bin
       description: "Remote desktop software"
 
@@ -107,7 +101,6 @@ desktop_environments:
       - kwalletmanager
       - kvantum
       - okular
-      - python-pyqt5
       - python-pyqt6
       - qbittorrent
       - spectacle
@@ -144,8 +137,6 @@ desktop_environments:
 flatpak:
   kde:
     default:
-      - name: io.github.shiftey.Desktop
-        description: "Shiftey Desktop application"
       - name: it.mijorus.gearlever
         description: "Graphical package manager for Flatpak"
     minimal:
@@ -155,8 +146,6 @@ flatpak:
     default:
       - name: com.mattjakeman.ExtensionManager
         description: "GNOME Shell extension manager"
-      - name: io.github.shiftey.Desktop
-        description: "Shiftey Desktop application"
       - name: it.mijorus.gearlever
         description: "Graphical package manager for Flatpak"
     minimal:
@@ -166,8 +155,6 @@ flatpak:
         description: "Graphical package manager for Flatpak"
   cosmic:
     default:
-      - name: io.github.shiftey.Desktop
-        description: "Shiftey Desktop application"
       - name: dev.edfloreshz.CosmicTweaks
         description: "Tweaks and customization for Cosmic desktop"
       - name: it.mijorus.gearlever

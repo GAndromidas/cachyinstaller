@@ -107,7 +107,6 @@ desktop_environments:
       - smplayer
     remove:
       - htop
-      - haruna
 
   gnome:
     install:

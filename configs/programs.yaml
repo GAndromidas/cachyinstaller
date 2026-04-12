@@ -104,7 +104,6 @@ desktop_environments:
       - python-pyqt6
       - qbittorrent
       - spectacle
-      - smplayer
     remove:
       - htop
 

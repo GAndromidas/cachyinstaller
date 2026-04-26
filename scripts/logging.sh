@@ -16,6 +16,18 @@ log_error() {
   ERRORS+=("$1")
 }
 
+log_success() {
+  echo -e "${GREEN}Success: $1${RESET}" | tee -a "$INSTALL_LOG"
+}
+
+log_warning() {
+  echo -e "${YELLOW}Warning: $1${RESET}" | tee -a "$INSTALL_LOG"
+}
+
+log_info() {
+  echo -e "${CYAN}Info: $1${RESET}" | tee -a "$INSTALL_LOG"
+}
+
 log_performance() {
   local step_name="$1"
   local current_time

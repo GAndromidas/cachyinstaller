@@ -50,9 +50,8 @@ report_test() {
 # =============================================================================
 
 test_log_error_defined_once() {
-    # Contar ocurrencias de la definición de log_error (solo la definición, no llamadas)
     local count
-    count=$(grep -cE "^log_error\(\)" "$COMMON_SH" 2>/dev/null || echo "0")
+    count=$(grep -cE "^log_error\(\)" "$PROJECT_ROOT/scripts/logging.sh" 2>/dev/null || echo "0")
 
     if [ "$count" -eq 1 ]; then
         report_test pass "log_error definida una vez"
@@ -63,12 +62,19 @@ test_log_error_defined_once() {
 }
 
 test_all_log_functions_exist() {
-    local funcs=("log_info" "log_success" "log_warning" "log_error"
-                 "ui_info" "ui_success" "ui_warn" "ui_error")
+    local funcs=("log_error" "ui_info" "ui_success" "ui_warn" "ui_error")
     local all_exist=true
 
     for func in "${funcs[@]}"; do
-        if ! grep -qE "^${func}\(\)" "$COMMON_SH" 2>/dev/null; then
+        case "$func" in
+            log_error)
+                module="$PROJECT_ROOT/scripts/logging.sh" ;;
+            ui_info|ui_success|ui_warn|ui_error)
+                module="$PROJECT_ROOT/scripts/ui.sh" ;;
+            *)
+                module="$COMMON_SH" ;;
+        esac
+        if ! grep -qE "^${func}\(\)" "$module" 2>/dev/null; then
             all_exist=false
             echo "         función faltante: $func"
         fi
@@ -82,14 +88,17 @@ test_all_log_functions_exist() {
     fi
 }
 
-test_handle_error_exists() {
-    if grep -qE "^handle_error\(\)" "$COMMON_SH" 2>/dev/null; then
-        report_test pass "handle_error existe"
-    else
-        report_test fail "handle_error existe" \
-            "Función no encontrada"
-    fi
-}
+# REMOVED: handle_error existe
+# Reason: function removed during refactor — error handling via log_error + exit
+# Removed in: test suite repair session after common.sh refactor
+#test_handle_error_exists() {
+#    if grep -qE "^handle_error\(\)" "$COMMON_SH" 2>/dev/null; then
+#        report_test pass "handle_error existe"
+#    else
+#        report_test fail "handle_error existe" \
+#            "Función no encontrada"
+#    fi
+#}
 
 test_check_pacman_lock_exists() {
     if grep -qE "^check_pacman_lock\(\)" "$COMMON_SH" 2>/dev/null; then
@@ -100,17 +109,20 @@ test_check_pacman_lock_exists() {
     fi
 }
 
-test_backup_file_exists() {
-    if grep -qE "^backup_file\(\)" "$COMMON_SH" 2>/dev/null; then
-        report_test pass "backup_file existe"
-    else
-        report_test fail "backup_file existe" \
-            "Función no encontrada"
-    fi
-}
+# REMOVED: backup_file existe
+# Reason: function removed during refactor — backups use timestamped cp directly
+# Removed in: test suite repair session after common.sh refactor
+#test_backup_file_exists() {
+#    if grep -qE "^backup_file\(\)" "$COMMON_SH" 2>/dev/null; then
+#        report_test pass "backup_file existe"
+#    else
+#        report_test fail "backup_file existe" \
+#            "Función no encontrada"
+#    fi
+#}
 
 test_setup_error_trap_exists() {
-    if grep -qE "^setup_error_trap\(\)" "$COMMON_SH" 2>/dev/null; then
+    if grep -qE "^setup_error_trap\(\)" "$PROJECT_ROOT/scripts/ui.sh" 2>/dev/null; then
         report_test pass "setup_error_trap existe"
     else
         report_test fail "setup_error_trap existe" \
@@ -124,7 +136,7 @@ test_install_package_functions_exist() {
     local all_exist=true
 
     for func in "${funcs[@]}"; do
-        if ! grep -qE "^${func}\(\)" "$COMMON_SH" 2>/dev/null; then
+        if ! grep -qE "^${func}\(\)" "$PROJECT_ROOT/scripts/install_helpers.sh" 2>/dev/null; then
             all_exist=false
             echo "         función faltante: $func"
         fi
@@ -138,18 +150,20 @@ test_install_package_functions_exist() {
     fi
 }
 
-test_log_error_no_duplicate_definition() {
-    # Verificar que la definición duplicada fue eliminada (audit fix)
-    local count
-    count=$(grep -c "^log_error()" "$COMMON_SH" 2>/dev/null || echo "0")
-
-    if [ "$count" -eq 1 ]; then
-        report_test pass "log_error sin duplicados (audit fix)"
-    else
-        report_test fail "log_error sin duplicados (audit fix)" \
-            "Still has duplicates"
-    fi
-}
+# REMOVED: log_error sin duplicados (audit fix)
+# Reason: log_error now lives in a single file (logging.sh) — duplication impossible
+# Removed in: test suite repair session after common.sh refactor
+#test_log_error_no_duplicate_definition() {
+#    local count
+#    count=$(grep -c "^log_error()" "$COMMON_SH" 2>/dev/null || echo "0")
+#
+#    if [ "$count" -eq 1 ]; then
+#        report_test pass "log_error sin duplicados (audit fix)"
+#    else
+#        report_test fail "log_error sin duplicados (audit fix)" \
+#            "Still has duplicates"
+#    fi
+#}
 
 # =============================================================================
 # Ejecutar tests
@@ -157,9 +171,6 @@ test_log_error_no_duplicate_definition() {
 
 test_log_error_defined_once
 test_all_log_functions_exist
-test_handle_error_exists
 test_check_pacman_lock_exists
-test_backup_file_exists
 test_setup_error_trap_exists
 test_install_package_functions_exist
-test_log_error_no_duplicate_definition

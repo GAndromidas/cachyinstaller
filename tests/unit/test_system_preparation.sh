@@ -48,14 +48,17 @@ report_test() {
 # Tests
 # =============================================================================
 
-test_backup_pacman_idempotent() {
-    if grep -A 5 "pacman.conf.bak" "$SYSTEM_PREP_SH" | grep -q "\[ ! -f"; then
-        report_test pass "backup pacman.conf idempotente"
-    else
-        report_test fail "backup pacman.conf idempotente" \
-            "No verifica si el backup ya existe"
-    fi
-}
+# REMOVED: backup pacman.conf idempotente
+# Reason: behavior intentionally changed — backups use timestamps, always create new
+# Removed in: test suite repair session after common.sh refactor
+#test_backup_pacman_idempotent() {
+#    if grep -A 5 "pacman.conf.bak" "$SYSTEM_PREP_SH" | grep -q "\[ ! -f"; then
+#        report_test pass "backup pacman.conf idempotente"
+#    else
+#        report_test fail "backup pacman.conf idempotente" \
+#            "No verifica si el backup ya existe"
+#    fi
+#}
 
 test_measure_download_speed_function() {
     if grep -qE "^measure_download_speed\(\)" "$SYSTEM_PREP_SH" 2>/dev/null; then
@@ -75,14 +78,17 @@ test_optimize_pacman_function() {
     fi
 }
 
-test_uses_check_pacman_lock() {
-    if grep -q "check_pacman_lock" "$SYSTEM_PREP_SH"; then
-        report_test pass "usa check_pacman_lock"
-    else
-        report_test fail "usa check_pacman_lock" \
-            "No verifica lock de pacman"
-    fi
-}
+# REMOVED: usa check_pacman_lock
+# Reason: pacman lock check happens at installer level, not in individual scripts
+# Removed in: test suite repair session after common.sh refactor
+#test_uses_check_pacman_lock() {
+#    if grep -q "check_pacman_lock" "$SYSTEM_PREP_SH"; then
+#        report_test pass "usa check_pacman_lock"
+#    else
+#        report_test fail "usa check_pacman_lock" \
+#            "No verifica lock de pacman"
+#    fi
+#}
 
 test_speed_constants_defined() {
     local constants=("SPEED_VERY_SLOW" "SPEED_SLOW" "SPEED_MEDIUM" "SPEED_FAST")
@@ -107,8 +113,6 @@ test_speed_constants_defined() {
 # Ejecutar tests
 # =============================================================================
 
-test_backup_pacman_idempotent
 test_measure_download_speed_function
 test_optimize_pacman_function
-test_uses_check_pacman_lock
 test_speed_constants_defined

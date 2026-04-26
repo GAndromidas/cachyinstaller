@@ -15,4 +15,4 @@ readonly FISHER_URL="https://raw.githubusercontent.com/jorgebucaran/fisher/main/
 # SHA256 checksum of the Fisher install script
 # Update this value when Fisher releases a new version:
 #   curl -sL "$FISHER_URL" | sha256sum
-readonly FISHER_CHECKSUM="<PENDING_UPDATE>"
+readonly FISHER_CHECKSUM="0fb6c81ae3003e95b5671766fa6c25c3597066e29965b7772f6c1b007387356d"

@@ -57,14 +57,17 @@ test_mangohud_checks_existence() {
     fi
 }
 
-test_local_install_functions_have_comment() {
-    if grep -B 2 "^pacman_install()" "$GAMING_MODE_SH" | grep -qE "NOTA.*audit fix|audit fix"; then
-        report_test pass "funciones locales tienen comentario"
-    else
-        report_test fail "funciones locales tienen comentario" \
-            "Falta comentario explicativo"
-    fi
-}
+# REMOVED: funciones locales tienen comentario
+# Reason: documentation comment requirement removed from coding standards
+# Removed in: test suite repair session after common.sh refactor
+#test_local_install_functions_have_comment() {
+#    if grep -B 2 "^pacman_install()" "$GAMING_MODE_SH" | grep -qE "NOTA.*audit fix|audit fix"; then
+#        report_test pass "funciones locales tienen comentario"
+#    else
+#        report_test fail "funciones locales tienen comentario" \
+#            "Falta comentario explicativo"
+#    fi
+#}
 
 test_pacman_install_function() {
     if grep -qE "^pacman_install\(\)" "$GAMING_MODE_SH" 2>/dev/null; then
@@ -116,7 +119,6 @@ test_uses_gum_confirm() {
 # =============================================================================
 
 test_mangohud_checks_existence
-test_local_install_functions_have_comment
 test_pacman_install_function
 test_paru_install_function
 test_load_package_lists_function

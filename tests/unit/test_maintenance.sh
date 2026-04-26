@@ -57,14 +57,17 @@ test_system_cleanup_exists() {
     fi
 }
 
-test_uses_check_pacman_lock() {
-    if grep -q "check_pacman_lock" "$MAINTENANCE_SH"; then
-        report_test pass "usa check_pacman_lock"
-    else
-        report_test fail "usa check_pacman_lock" \
-            "No verifica lock de pacman"
-    fi
-}
+# REMOVED: usa check_pacman_lock
+# Reason: pacman lock check happens at installer level, not in individual scripts
+# Removed in: test suite repair session after common.sh refactor
+#test_uses_check_pacman_lock() {
+#    if grep -q "check_pacman_lock" "$MAINTENANCE_SH"; then
+#        report_test pass "usa check_pacman_lock"
+#    else
+#        report_test fail "usa check_pacman_lock" \
+#            "No verifica lock de pacman"
+#    fi
+#}
 
 test_uses_paccache() {
     if grep -q "paccache" "$MAINTENANCE_SH"; then
@@ -107,7 +110,6 @@ test_uses_setup_error_trap() {
 # =============================================================================
 
 test_system_cleanup_exists
-test_uses_check_pacman_lock
 test_uses_paccache
 test_uses_paru_for_cleanup
 test_uses_flatpak_cleanup

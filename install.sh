@@ -51,8 +51,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$SCRIPT_DIR/scripts"
 CONFIGS_DIR="$SCRIPT_DIR/configs"
 
-source "$SCRIPTS_DIR/common.sh"
-
 # --- Function to setup system environment variables ---
 # This is run on every invocation to ensure variables are set, even on resume.
 setup_system_enhancements() {
@@ -125,10 +123,13 @@ export KEEP_DIR
 
 cachy_ascii
 
-# Silently install gum for beautiful UI before menu
+# Try to install gum for beautiful UI, but continue if it fails
 if ! command -v gum >/dev/null 2>&1; then
   sudo pacman -S --noconfirm gum >/dev/null 2>&1 || true
 fi
+
+# Source UI wrapper for fallback support
+source "$SCRIPTS_DIR/ui.sh"
 
 # Check system requirements
 check_system_requirements() {
@@ -246,7 +247,7 @@ ui_success "Step 4 completed"
 
 # Step 5: Gaming Mode (optional)
 print_step_header 5 "$TOTAL_STEPS" "Gaming Mode"
-if gum confirm "Install gaming packages? (Steam, MangoHud, GameMode, Proton tools)"; then
+if gum_confirm "Install gaming packages? (Steam, MangoHud, GameMode, Proton tools)"; then
   ui_info "Setting up gaming packages..."
   source "$SCRIPTS_DIR/gaming_mode.sh"
   ui_success "Step 5 completed"

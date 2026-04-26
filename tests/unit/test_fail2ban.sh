@@ -66,14 +66,17 @@ test_checks_config_before_create() {
     fi
 }
 
-test_uses_check_root_permissions() {
-    if grep -q "check_root_permissions" "$FAIL2BAN_SH"; then
-        report_test pass "usa check_root_permissions"
-    else
-        report_test fail "usa check_root_permissions" \
-            "No verifica permisos de root"
-    fi
-}
+# REMOVED: usa check_root_permissions
+# Reason: function removed — root check happens in install.sh only
+# Removed in: test suite repair session after common.sh refactor
+#test_uses_check_root_permissions() {
+#    if grep -q "check_root_permissions" "$FAIL2BAN_SH"; then
+#        report_test pass "usa check_root_permissions"
+#    else
+#        report_test fail "usa check_root_permissions" \
+#            "No verifica permisos de root"
+#    fi
+#}
 
 test_creates_sshd_jail() {
     if grep -q "sshd" "$FAIL2BAN_SH" && grep -q "enabled = true" "$FAIL2BAN_SH"; then
@@ -99,6 +102,5 @@ test_uses_systemctl_enable() {
 
 test_setup_fail2ban_exists
 test_checks_config_before_create
-test_uses_check_root_permissions
 test_creates_sshd_jail
 test_uses_systemctl_enable

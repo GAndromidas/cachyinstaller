@@ -58,7 +58,7 @@ test_fisher_hash_verification_present() {
 }
 
 test_fisher_uses_temp_file() {
-    if grep -qE "mktemp|FISHER_TMP" "$SHELL_SETUP_SH"; then
+    if grep -qE "/tmp/fisher|mktemp.*fisher|fisher.*mktemp" "$SHELL_SETUP_SH"; then
         report_test pass "Fisher usa archivo temporal"
     else
         report_test fail "Fisher usa archivo temporal" \

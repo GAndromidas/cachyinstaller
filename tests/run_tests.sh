@@ -128,9 +128,9 @@ case "$CATEGORY" in
         print_summary
         ;;
     all)
-        local tot_static=0 pass_static=0 fail_static=0 skip_static=0
-        local tot_unit=0 pass_unit=0 fail_unit=0 skip_unit=0
-        local tot_int=0 pass_int=0 fail_int=0 skip_int=0
+        tot_static=0 pass_static=0 fail_static=0 skip_static=0
+        tot_unit=0 pass_unit=0 fail_unit=0 skip_unit=0
+        tot_int=0 pass_int=0 fail_int=0 skip_int=0
 
         # Static
         run_static_tests

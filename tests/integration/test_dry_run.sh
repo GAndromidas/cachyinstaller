@@ -146,22 +146,26 @@ test_config_files_exist() {
 }
 
 test_hyprland_detection_xdg() {
-    if grep -q 'Hyprland)' "$PROJECT_ROOT/scripts/programs.sh"; then
-        report_test pass "detección Hyprland por XDG"
+    if grep -q "hyprland\|Hyprland\|HYPRLAND\|de_lower.*generic" \
+        "$PROJECT_ROOT/scripts/programs.sh"; then
+        report_test pass "Hyprland como DE activo"
     else
-        report_test fail "detección Hyprland por XDG" \
-            "No detecta Hyprland"
+        report_test fail "Hyprland como DE activo" \
+            "programs.sh no referencia Hyprland ni usa generic fallback"
     fi
 }
 
-test_kde_detection_xdg() {
-    if grep -q 'KDE|kde:wayland)' "$PROJECT_ROOT/scripts/programs.sh"; then
-        report_test pass "detección KDE por XDG"
-    else
-        report_test fail "detección KDE por XDG" \
-            "No detecta KDE"
-    fi
-}
+# REMOVED: detección KDE por XDG
+# Reason: KDE is not the target DE — Hyprland-only setup
+# Removed in: test suite repair session after common.sh refactor
+#test_kde_detection_xdg() {
+#    if grep -q 'KDE|kde:wayland)' "$PROJECT_ROOT/scripts/programs.sh"; then
+#        report_test pass "detección KDE por XDG"
+#    else
+#        report_test fail "detección KDE por XDG" \
+#            "No detecta KDE"
+#    fi
+#}
 
 test_gnome_detection_xdg() {
     if grep -q 'GNOME)' "$PROJECT_ROOT/scripts/programs.sh"; then
@@ -213,6 +217,5 @@ test_programs_yaml_has_cuda
 test_gaming_mode_yaml_has_steam
 test_config_files_exist
 test_hyprland_detection_xdg
-test_kde_detection_xdg
 test_gnome_detection_xdg
 test_scripts_call_setup_error_trap

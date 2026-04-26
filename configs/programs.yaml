@@ -170,6 +170,8 @@ pacman:
       description: "Backlight control"
     - name: playerctl
       description: "Media player control"
+    - name: swappy
+      description: "Screenshot annotation editor (post grim+slurp capture)"
     - name: xdg-desktop-portal-hyprland
       description: "XDG portal for Hyprland"
 
@@ -191,8 +193,8 @@ pacman:
       description: "Hyprland idle daemon — triggers lock, screen off on inactivity"
     - name: hyprlock
       description: "Hyprland screen locker — integrates with hypridle"
-    - name: hyprpaper
-      description: "Wallpaper utility for Hyprland"
+    - name: swww
+      description: "Animated wallpaper daemon (gif/video support)"
     - name: waybar
       description: "Highly customizable Wayland status bar"
     - name: kitty
@@ -209,6 +211,12 @@ pacman:
       description: "Qt6 theme configuration tool — controls Qt6 app appearance outside KDE"
     - name: kvantum
       description: "SVG-based Qt theme engine — enables consistent Qt theming in Hyprland"
+
+    # === WALLPAPER / COLORS ===
+    - name: waypaper
+      description: "GUI frontend for swww, handles wallpaper selection"
+    - name: matugen
+      description: "Material You color palette generator from wallpaper"
 
     # === KDE FILE MANAGER AND VIEWER STACK (Qt-native, works in Hyprland with KDE portal) ===
     - name: dolphin
@@ -359,8 +367,6 @@ aur:
       description: "Microsoft fonts (Arial, Times, etc.)"
     - name: wob
       description: "Wayland overlay bar"
-    - name: hypridle
-      description: "Idle manager"
     - name: ags
       description: "Widgets for Hyprland"
     # Backup

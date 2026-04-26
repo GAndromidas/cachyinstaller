@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 
 # Gaming and performance tweaks installation for CachyOS
 # Get the directory where this script is located, resolving symlinks
@@ -10,6 +10,7 @@ CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
 GAMING_YAML="$CONFIGS_DIR/gaming_mode.yaml"
 
 source "$SCRIPT_DIR/common.sh"
+setup_error_trap
 
 # ===== Globals =====
 GAMING_ERRORS=()

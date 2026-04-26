@@ -1,5 +1,10 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/constants.sh"
+source "$SCRIPT_DIR/common.sh"
+setup_error_trap
 
 # --- Sanity Checks ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,7 +1,7 @@
 #!/bin/bash
 # CachyInstaller — common entry point
 # This is the single entry point. All other scripts should source this file.
-set -uo pipefail
+set -euo pipefail
 
 # Source constants — must be loaded first
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

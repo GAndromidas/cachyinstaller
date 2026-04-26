@@ -70,7 +70,7 @@ report_test() {
 # =============================================================================
 
 test_syntax_bash_valid() {
-    for script in "${__ALL_SCRIPTS[@]}"; do
+    for script in "${_ALL_SCRIPTS[@]}"; do
         local name
 
         if bash -n "$script" 2>/dev/null; then
@@ -83,7 +83,7 @@ test_syntax_bash_valid() {
 }
 
 test_has_set_euo_pipefail() {
-    for script in "${__ALL_SCRIPTS[@]}"; do
+    for script in "${_ALL_SCRIPTS[@]}"; do
 
         if grep -q "^set -euo pipefail" "$script" 2>/dev/null; then
             report_test pass "set -euo pipefail: $(basename "$script")"
@@ -95,7 +95,7 @@ test_has_set_euo_pipefail() {
 }
 
 test_sources_common_sh() {
-    for script in "${__ALL_SCRIPTS[@]}"; do
+    for script in "${_ALL_SCRIPTS[@]}"; do
         local name
         name=$(basename "$script")
 

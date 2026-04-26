@@ -90,7 +90,7 @@ START_TIME=$(date +%s)
 # Parse flags
 VERBOSE=false
 DRY_RUN=false
-KEEP_DIR=false
+KEEP_DIR=true
 for arg in "$@"; do
   case "$arg" in
     -h|--help)

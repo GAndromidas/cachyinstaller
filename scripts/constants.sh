@@ -3,6 +3,9 @@
 # All magic numbers and shared literals live here.
 # Source this file before scripts/common.sh.
 
+[ -n "${_CONSTANTS_LOADED:-}" ] && return 0
+_CONSTANTS_LOADED=1
+
 # Minimum free disk space required before installation (in kilobytes = 2 GB)
 readonly MIN_DISK_KB=2097152
 

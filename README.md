@@ -50,6 +50,54 @@ Getting your CachyOS system set up is simple.
 
 ---
 
+## ➤ Usage
+
+```bash
+./install.sh [OPTIONS]
+```
+
+### Options
+
+| Option | Description |
+|--------|------------|
+| `-h`, `--help` | Show this help message and exit |
+| `-v`, `--verbose` | Enable verbose output (show all package installation details) |
+| `-q`, `--quiet` | Quiet mode (minimal output) |
+| `-d`, `--dry-run` | Preview what will be installed without making changes |
+| `--keep` | Keep the installer directory after completion (useful for re-running or reviewing logs) |
+
+---
+
+## ➤ Environment Variables
+
+These variables control installer behavior. They can be set before running `install.sh` to override defaults.
+
+| Variable | Type | Default | Description | Defined in |
+|---|---|---|---|---|
+| INSTALL_MODE | string | default | Package set to install (default/minimal) | install.sh |
+| VERBOSE | bool | false | Print progress messages to stdout | install.sh |
+| DRY_RUN | bool | false | Preview changes without applying them | install.sh |
+| GPU_VENDOR | string | auto-detected | Override GPU vendor detection (amd/nvidia/intel) | install.sh |
+| IS_LAPTOP | bool | auto-detected | Override laptop detection | install.sh |
+| INSTALL_LOG | string | ~/.cachyinstaller.log | Path to installation log file | install.sh |
+| KEEP_DIR | bool | false | Keep installer directory after completion | install.sh |
+| MIN_DISK_KB | int | 2097152 | Minimum free disk space in KB (2 GB) | constants.sh |
+| TOTAL_STEPS | int | 7 | Number of installation steps | constants.sh |
+| FISHER_URL | string | (see constants.sh) | Fisher install script URL | constants.sh |
+| FISHER_CHECKSUM | string | (see constants.sh) | Expected SHA256 of Fisher script | constants.sh |
+
+### Shared Arrays
+
+These arrays are declared globally in common.sh and written/read across scripts.
+
+| Array | Purpose | Written by | Read by |
+|---|---|---|---|
+| INSTALLED_PACKAGES | Tracks successfully installed packages | programs.sh, gaming_mode.sh | install.sh (final summary) |
+| FAILED_PACKAGES | Tracks packages that failed to install | programs.sh, gaming_mode.sh | install.sh (final summary) |
+| ERRORS | General error messages for final report | all scripts via log_error() | install.sh (final summary) |
+
+---
+
 ## ➤ Installation Modes
 
 You will be prompted to choose one of two installation modes for general applications. The optional Gaming Mode setup is offered separately after this choice.

@@ -20,12 +20,5 @@ pacman:
       description: "Digital distribution platform for games"
     - name: wine
       description: "Compatibility layer for running Windows applications"
-
-flatpak:
-  apps:
-    - name: com.heroicgameslauncher.hgl
-      description: "Open source launcher for GOG and Epic Games."
-    - name: com.vysp3r.ProtonPlus
+    - name: protonplus
       description: "Manager for Proton-GE and other compatibility tools for Steam."
-    - name: io.github.Faugus.faugus-launcher
-      description: "Launcher for modded Bethesda games (replaces Lutris)."

@@ -45,24 +45,7 @@ remove_pacman_packages() {
         ui_info "  - [DRY-RUN] Would remove $pkg"
       fi
     fi
-  done
-}
-
-
-
-# --- UI Helper for this script ---
-print_package_summary() {
-  local title="$1"
-  shift
-  local pkgs=("$@")
-
-  if [ ${#pkgs[@]} -gt 0 ]; then
-    echo ""
-    ui_info "$title:"
-    # Use column to format the list nicely.
-    # The sed command removes empty lines that might result from filtering.
-    printf '%s\n' "${pkgs[@]}" | sed '/^$/d' | column | sed 's/^/  /'
-  fi
+done
 }
 
 # --- Main Logic ---
@@ -89,7 +72,9 @@ esac
 ui_info "Detected Desktop Environment: ${de_lower^}"
 mapfile -t de_install_pkgs < <(read_yaml_list ".desktop_environments.${de_lower}.install")
 mapfile -t de_remove_pkgs < <(read_yaml_list ".desktop_environments.${de_lower}.remove")
-mapfile -t flatpak_pkgs < <(read_yaml_list ".flatpak.${de_lower}.${INSTALL_MODE:-default}")
+# REMOVED: flatpak per-DE installs — flatpak runtime remains available via pacman
+# The flatpak: section never existed in programs.yaml, so this always produced empty arrays
+# mapfile -t flatpak_pkgs < <(read_yaml_list ".flatpak.${de_lower}.${INSTALL_MODE:-default}")
 
 # 3. Consolidate Pacman packages
 pacman_pkgs_to_install=(
@@ -100,15 +85,13 @@ pacman_pkgs_to_install=(
 # Filter out empty/duplicate elements
 pacman_pkgs_to_install=($(echo "${pacman_pkgs_to_install[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
 aur_pkgs=($(echo "${aur_pkgs[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
-flatpak_pkgs=($(echo "${flatpak_pkgs[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
 
 # 4. Display a summary of what will be installed
 print_header "Package Installation Summary"
 print_package_summary "The following packages will be installed from Pacman" "${pacman_pkgs_to_install[@]}"
 print_package_summary "The following packages will be installed from the AUR" "${aur_pkgs[@]}"
-print_package_summary "The following packages will be installed from Flatpak" "${flatpak_pkgs[@]}"
 
-if [ ${#pacman_pkgs_to_install[@]} -eq 0 ] && [ ${#aur_pkgs[@]} -eq 0 ] && [ ${#flatpak_pkgs[@]} -eq 0 ]; then
+if [ ${#pacman_pkgs_to_install[@]} -eq 0 ] && [ ${#aur_pkgs[@]} -eq 0 ]; then
   ui_success "No new packages to install."
   return 0
 fi
@@ -130,25 +113,6 @@ if [ ${#aur_pkgs[@]} -gt 0 ]; then
   else
     ui_warn "AUR helper 'paru' not found. Skipping AUR packages."
   fi
-fi
-
-# 8. Install Flatpak packages
-if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
-    ui_info "Setting up Flatpak..."
-    if ! command_exists flatpak; then
-        ui_info "Installing Flatpak..."
-        install_packages_quietly flatpak || { log_error "Failed to install Flatpak. Skipping Flatpak packages."; return 0; }
-    fi
-
-    if [ "${DRY_RUN:-false}" = false ]; then
-        if ! flatpak remote-list | grep -q flathub; then
-            flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >> "$INSTALL_LOG" 2>&1
-            ui_info "Flathub remote added."
-        fi
-    else
-        ui_info "[DRY_RUN] Would ensure Flathub remote exists."
-    fi
-    install_flatpak_quietly "${flatpak_pkgs[@]}"
 fi
 
 return 0

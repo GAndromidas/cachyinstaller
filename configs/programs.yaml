@@ -289,8 +289,6 @@ pacman:
     # === BACKUP AND DOTFILES ===
     - name: chezmoi
       description: "Dotfile manager"
-    - name: cmatrix
-      description: "Matrix rain animation"
 
 # Essential packages by installation mode
 essential:

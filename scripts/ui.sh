@@ -3,7 +3,7 @@
 set -uo pipefail
 
 supports_gum() {
-  command -v gum >/dev/null 2>&1
+  command -v gum >/dev/null 2>&1 && gum --version >/dev/null 2>&1
 }
 
 ui_info() {

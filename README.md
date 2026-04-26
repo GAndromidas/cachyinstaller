@@ -1,74 +1,112 @@
-<div align="center">
+# CachyInstaller (Personal Fork)
 
-# CachyInstaller
-### Your Fully Automated CachyOS Post-Install Companion
-
-</div>
-
-<p align="center">
-  A simple, robust, and professional post-installation script designed to enhance your CachyOS system. It respects CachyOS defaults, runs unattended after your initial choice, and cleans up after itself, leaving your system perfectly configured and ready to use.
-</p>
-
-</div>
+> Automated post-installation script for CachyOS with Hyprland, NVIDIA Wayland, and AI/Dev workflow setup.
 
 ---
 
-## ➤ Core Principles
+## Based on the work of GAndromidas
 
-CachyInstaller is built on a clear philosophy to ensure a safe, pleasant, and powerful user experience.
+This project is a fork of the original [CachyInstaller](https://github.com/GAndromidas/cachyinstaller) by GAndromidas. The original project provided a solid foundation — a robust, automated post-installation script for CachyOS that handles package installation, shell configuration, gaming setup, and system services with minimal user interaction.
 
--   **⚙️ Fire-and-Forget Automation**: After an initial menu selection, the script runs to completion without any further user interaction.
--   **🛡️ Respects Defaults**: The installer enhances your system without overriding the sensible defaults provided by the CachyOS team, especially regarding drivers.
--   **✍️ Non-Destructive**: Your personal configuration files are safe. The script will only place default configurations (`fish`, `MangoHud`, etc.) if you don't already have one.
--   **🧹 Clean Finish**: Upon successful completion, the script automatically removes its own directory and log files, leaving no trace.
+This fork diverges significantly to serve a specific personal setup: a Hyprland-only environment on an NVIDIA laptop with an AI/development workflow. The changes are not a criticism of the original — they reflect a different use case. If you need multi-DE support (KDE, GNOME, COSMIC) or the original feature set, the upstream repository is the right choice.
 
----
-
-## ➤ Getting Started
-
-Getting your CachyOS system set up is simple.
-
-1.  **Clone the Repository**
-    ```bash
-    git clone https://github.com/GAndromidas/cachyinstaller.git
-    ```
-
-2.  **Navigate to the Directory**
-    ```bash
-    cd cachyinstaller
-    ```
-
-3.  **Make the Script Executable**
-    ```bash
-    chmod +x install.sh
-    ```
-
-4.  **Run the Installer**
-    ```bash
-    ./install.sh
-    ```
+Thank you, GAndromidas, for building something that saved real time and made this fork possible.
 
 ---
 
-## ➤ Usage
+## What this fork does differently
+
+- **Hyprland-only** — KDE, GNOME, and COSMIC support removed
+- **NVIDIA Wayland compatibility** — dedicated hardware setup step with environment variables, EGL, and VA-API drivers
+- **Flatpak runtime available, no Flatpak installs** — Flatpak runtime is kept for compatibility, but package installations are removed (handled elsewhere if needed)
+- **Gaming mode restored** — installs Steam, MangoHud, GameMode, Wine, and Proton tools via `cachyos-gaming-meta` (Lutris and Heroic excluded — not needed for this setup)
+- **xdg-desktop-portal configured** — Hyprland portal + KDE portal for Dolphin and Qt/KDE apps to open files correctly
+- **AI/Dev packages added** — Ollama, Docker, nvidia-container-toolkit, Python, Rust, Node.js, plus uv and mise (AUR)
+- **Script modularization** — `common.sh` refactored into `ui.sh`, `logging.sh`, `install_helpers.sh`
+- **constants.sh added** — centralized named constants for disk space, steps, Fisher URL/checksum
+- **Fisher checksum verification** — SHA256 validation before Fisher install
+- **`--keep` flag** — keeps installer directory after completion
+- **README environment variables section** — documented all variables and shared arrays
+
+---
+
+## Requirements
+
+- CachyOS (fresh install recommended)
+- NVIDIA GPU (this fork is tuned for NVIDIA + Wayland)
+- Internet connection
+- Minimum 2GB free disk space
+- User with sudo privileges (do NOT run as root)
+
+---
+
+## Installation
 
 ```bash
-./install.sh [OPTIONS]
+git clone https://github.com/Hnocuru/cachyinstaller.git
+cd cachyinstaller
+chmod +x install.sh
+./install.sh
 ```
 
-### Options
+### Flags
 
-| Option | Description |
-|--------|------------|
-| `-h`, `--help` | Show this help message and exit |
-| `-v`, `--verbose` | Enable verbose output (show all package installation details) |
-| `-q`, `--quiet` | Quiet mode (minimal output) |
-| `-d`, `--dry-run` | Preview what will be installed without making changes |
-| `--keep` | Keep the installer directory after completion (useful for re-running or reviewing logs) |
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview all changes without applying anything |
+| `--keep` | Keep the installer directory after completion |
+| `--help` | Show usage information |
+| `-v, --verbose` | Enable verbose output |
+| `-q, --quiet` | Quiet mode (minimal output) |
 
 ---
 
-## ➤ Environment Variables
+## Installation steps
+
+| Step | Script | Description |
+|------|--------|-------------|
+| 1 | `system_preparation.sh` | pacman optimization, mirrors, base config |
+| 2 | `hardware_setup.sh` | NVIDIA + Wayland env vars, kernel param check |
+| 3 | `shell_setup.sh` | Fish shell, Starship, Fisher plugins, portal config |
+| 4 | `programs.sh` | packages via pacman, paru AUR, Docker, virtualization |
+| 5 | `gaming_mode.sh` | Optional: Steam, MangoHud, GameMode, Proton (confirm prompt) |
+| 6 | `fail2ban.sh` | SSH protection |
+| 7 | `system_services.sh` | systemd services: UFW, bluetooth, fstrim, timesyncd |
+| 8 | `maintenance.sh` | cache cleanup |
+
+---
+
+## Package highlights
+
+### Hyprland stack
+waybar, hyprlock, hypridle, hyprpaper, hyprpolkitagent, wofi, kitty, mako, qt5-wayland, qt6-wayland, qt5ct, qt6ct, kvantum, nwg-look, dolphin, ark, gwenview, okular, kate, wl-clipboard, cliphist, grim, slurp, xdg-desktop-portal-hyprland, xdg-desktop-portal-kde
+
+### Development and AI
+ollama, docker, docker-compose, lazydocker, nvidia-container-toolkit, python, python-pip, direnv, zellij, atuin, uv (AUR), mise (AUR), rustup, nodejs, npm, pnpm, lazygit, visual-studio-code-bin (AUR)
+
+### Gaming (optional step)
+Steam, MangoHud, GameMode, Wine, cachyos-gaming-meta, protonplus
+(Lutris and Heroic excluded — not needed for this setup)
+
+---
+
+## CUDA — manual install note
+
+CUDA is not installed automatically (~5GB download). Install only after verifying your Hyprland session is stable:
+
+```bash
+# Verify GPU is detected first
+nvidia-smi
+
+# Then install CUDA (~5GB download)
+sudo pacman -S cuda
+```
+
+Required for: Blender OptiX/CUDA rendering, Ollama GPU inference, and ML/AI workflows with GPU acceleration.
+
+---
+
+## Environment Variables
 
 These variables control installer behavior. They can be set before running `install.sh` to override defaults.
 
@@ -82,13 +120,13 @@ These variables control installer behavior. They can be set before running `inst
 | INSTALL_LOG | string | ~/.cachyinstaller.log | Path to installation log file | install.sh |
 | KEEP_DIR | bool | false | Keep installer directory after completion | install.sh |
 | MIN_DISK_KB | int | 2097152 | Minimum free disk space in KB (2 GB) | constants.sh |
-| TOTAL_STEPS | int | 7 | Number of installation steps | constants.sh |
+| TOTAL_STEPS | int | 8 | Number of installation steps | constants.sh |
 | FISHER_URL | string | (see constants.sh) | Fisher install script URL | constants.sh |
 | FISHER_CHECKSUM | string | (see constants.sh) | Expected SHA256 of Fisher script | constants.sh |
 
 ### Shared Arrays
 
-These arrays are declared globally in common.sh and written/read across scripts.
+These arrays are declared globally in `common.sh` and shared across scripts.
 
 | Array | Purpose | Written by | Read by |
 |---|---|---|---|
@@ -98,70 +136,45 @@ These arrays are declared globally in common.sh and written/read across scripts.
 
 ---
 
-## ➤ Installation Modes
+## Project structure
 
-You will be prompted to choose one of two installation modes for general applications. The optional Gaming Mode setup is offered separately after this choice.
-
-### Standard Mode (Recommended)
-This is the fully automated "do everything" option. It installs a complete suite of applications and enhancements for a feature-rich desktop experience.
-
-### Minimal Mode
-This provides a lightweight setup with only essential tools, perfect for users who prefer a smaller base to build upon.
-
----
-
-## ➤ Features & The Installation Process
-
-CachyInstaller runs through a sequence of 7 automated steps, providing a clear and beautiful summary of packages to be installed at each stage.
-
-#### ✔️ Step 1: System Preparation
-Optimizes `pacman` for your network speed by configuring parallel downloads and updates system keyrings and package lists.
-
-#### ✔️ Step 2: Shell Enhancement
-Sets up the modern and user-friendly **Fish shell** with the **Starship** prompt and useful plugins. It only places default configs if none exist, preserving your customizations.
-
-#### ✔️ Step 3: Program Installation
-Installs applications from the `programs.yaml` file based on your chosen mode (Standard/Minimal) and your detected desktop environment (KDE, GNOME, etc.). It handles packages from the official repositories, the AUR, and Flatpak.
-
-#### ✔️ Step 4: Gaming Mode
-Offers a comprehensive gaming setup by installing the official `cachyos-gaming-meta` package, which provides a cohesive, high-performance CachyOS gaming experience. The script also installs other essential tools like Discord, OBS Studio, and Wine, and modern game launchers like Heroic Games Launcher and Faugus Launcher via Flatpak. This hybrid approach ensures you get the best of the CachyOS optimizations while guaranteeing all your favorite applications are present. The script will always ask for your confirmation before installing any gaming-related packages.
-
-#### ✔️ Step 5: Security Hardening
-Automatically installs, configures, and enables the **UFW firewall** and **Fail2ban** (for SSH brute-force protection).
-
-#### ✔️ Step 6: System Services
-Enables useful systemd services (like `fstrim.timer` for SSDs) and applies non-destructive desktop tweaks (e.g., KDE global shortcuts).
-
-#### ✔️ Step 7: Maintenance & Cleanup
-Cleans all package manager caches (`pacman`, `paru`, `flatpak`) to free up valuable disk space.
-
----
-
-## ➤ Customization
-
-The heart of CachyInstaller's flexibility lies in its configuration files. You can easily add or remove packages to perfectly tailor the installation to your needs before running the script:
--   **`configs/programs.yaml`**: Manages packages for the `Standard` and `Minimal` installation modes.
--   **`configs/gaming_mode.yaml`**: Manages all packages for the optional Gaming Mode setup.
+```
+cachyinstaller/
+├── install.sh
+├── README.md
+├── LICENSE
+├── scripts/
+│   ├── common.sh          # entry point — sources all modules
+│   ├── constants.sh       # named constants and URLs
+│   ├── ui.sh              # gum wrappers and ANSI output
+│   ├── logging.sh         # log file management
+│   ├── install_helpers.sh # package installation wrappers
+│   ├── hardware_setup.sh  # NVIDIA + Wayland compatibility
+│   ├── shell_setup.sh     # Fish, Starship, Fisher, portal config
+│   ├── programs.sh        # package installation
+│   ├── gaming_mode.sh     # optional gaming stack
+│   ├── fail2ban.sh        # SSH protection
+│   ├── system_services.sh # systemd services
+│   ├── system_preparation.sh
+│   └── maintenance.sh
+├── configs/
+│   ├── programs.yaml      # package definitions
+│   ├── gaming_mode.yaml  # gaming packages
+│   ├── fish/
+│   ├── fastfetch/
+│   ├── user-fish-config/
+│   ├── cachyos-fish-config/
+│   ├── kglobalshortcutsrc
+│   └── MangoHud.conf
+└── tests/
+    ├── run_tests.sh
+    ├── static/
+    ├── unit/
+    └── integration/
+```
 
 ---
 
-## ➤ Frequently Asked Questions (FAQ)
+## License
 
-**Is this script safe to re-run?**
-> Yes. The script is designed to be idempotent. Package installations only affect missing or outdated packages, and configuration files are not overwritten. You can safely re-run it to apply changes from your `programs.yaml` file.
-
-**Will this overwrite my custom shell configuration?**
-> No. The script will only copy default configuration files for `fish`, `starship`, `MangoHud`, etc., if it detects that you don't already have one. Your custom configs are safe.
-
-**What happens after the script finishes?**
-> If the script completes without any errors, it will ask you to reboot and then automatically delete its own directory and log file. If an error occurs, the files will be left in place for you to inspect the logs for troubleshooting.
-
----
-
-## ➤ Contributing
-
-Contributions are welcome! Feel free to open an issue or submit a pull request for any improvements or bug fixes.
-
-## ➤ License
-
-This project is licensed under the **MIT License**.
+MIT License — same as the original project. See [LICENSE](LICENSE) file for details.

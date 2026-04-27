@@ -1,7 +1,16 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/constants.sh"
+source "$SCRIPT_DIR/common.sh"
+setup_error_trap
 
 # --- Sanity Checks ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/constants.sh" ]]; then
+  source "$SCRIPT_DIR/constants.sh"
+fi
 if ! command_exists fish; then
   log_error "Fish shell not found! This script is designed for CachyOS which includes Fish by default."
   return 1
@@ -79,8 +88,20 @@ fi
 # --- Install Fisher and Plugins ---
 ui_info "Installing Fisher (Fish plugin manager) and plugins..."
 if [ "${DRY_RUN:-false}" = false ]; then
-  # Install Fisher itself
-  fish -c "curl -sL https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish | source && fisher install jorgebucaran/fisher" >/dev/null 2>&1
+  # Install Fisher itself with checksum verification
+  # Download Fisher installer to temp file for checksum verification
+  # (Never pipe curl directly into source — supply chain safety)
+  curl -sL "$FISHER_URL" -o /tmp/fisher_install.fish
+  actual_checksum=$(sha256sum /tmp/fisher_install.fish | awk '{print $1}')
+  if [[ "$actual_checksum" != "$FISHER_CHECKSUM" ]]; then
+      log_error "Fisher checksum mismatch. Expected: $FISHER_CHECKSUM Got: $actual_checksum"
+      log_error "Possible supply chain compromise. Aborting Fisher installation."
+      log_error "To update the checksum: curl -sL \"$FISHER_URL\" | sha256sum"
+      rm -f /tmp/fisher_install.fish
+  else
+      fish -c "source /tmp/fisher_install.fish"
+      rm -f /tmp/fisher_install.fish
+  fi
 
   # Install plugins
   plugins=(
@@ -125,5 +146,65 @@ if [[ "$SHELL" != "$fish_path" ]]; then
 else
   ui_info "Fish is already the default shell."
 fi
+
+# --- Configure Hyprland xdg-desktop-portal ---
+configure_hyprland_portals() {
+    # Configure xdg-desktop-portal for Hyprland + KDE apps
+    # This is required for Dolphin and all Qt/KDE apps to open files correctly.
+    # Without this config, "Open with", file associations, and PDF/image opening
+    # will silently fail in Hyprland.
+    #
+    # Architecture:
+    #   - hyprland portal → screen capture, Hyprland-specific features
+    #   - kde portal      → file picker for Dolphin, Ark, Okular, Gwenview, Kate
+    #   - gtk portal      → file picker fallback for GTK apps
+    #
+    # Reference: https://wiki.hyprland.org/Hypr-Ecosystem/xdg-desktop-portal-hyprland/
+
+    local portal_config_dir="$HOME/.config/xdg-desktop-portal"
+    local portal_config_file="$portal_config_dir/hyprland-portals.conf"
+
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        ui_info "[DRY-RUN] Would create: $portal_config_file"
+        return 0
+    fi
+
+    mkdir -p "$portal_config_dir"
+
+    # Only write if the file does not already exist (idempotent)
+    if [[ ! -f "$portal_config_file" ]]; then
+        cat > "$portal_config_file" << 'EOF'
+[preferred]
+# hyprland handles: screencopy, globalshortcuts, inhibit_idle, remote_desktop
+# kde handles: file picker for all Qt/KDE apps (Dolphin, Ark, Okular, Gwenview)
+# gtk handles: file picker fallback for GTK apps
+default=hyprland;kde;gtk
+org.freedesktop.impl.portal.FileChooser=kde
+org.freedesktop.impl.portal.Screenshot=hyprland
+org.freedesktop.impl.portal.ScreenCast=hyprland
+EOF
+        ui_success "Created Hyprland portal configuration: $portal_config_file"
+    else
+        ui_info "Portal config already exists — skipping: $portal_config_file"
+    fi
+
+    # Remove stale portal configs from previous desktop environments
+    # that can conflict with Hyprland portal resolution
+    local stale_configs=(
+        "$HOME/.config/xdg-desktop-portal/gnome-portals.conf"
+        "$HOME/.config/xdg-desktop-portal/wlr-portals.conf"
+    )
+    for stale in "${stale_configs[@]}"; do
+        if [[ -f "$stale" ]]; then
+            rm -f "$stale"
+            ui_info "Removed conflicting portal config: $stale"
+        fi
+    done
+
+    INSTALLED_PACKAGES+=("xdg-portal-config (hyprland+kde+gtk)")
+}
+
+# Run portal configuration
+configure_hyprland_portals
 
 return 0

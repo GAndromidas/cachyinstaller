@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 
 # Gaming and performance tweaks installation for CachyOS
 # Get the directory where this script is located, resolving symlinks
@@ -10,10 +10,11 @@ CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
 GAMING_YAML="$CONFIGS_DIR/gaming_mode.yaml"
 
 source "$SCRIPT_DIR/common.sh"
+setup_error_trap
 
 # ===== Globals =====
 GAMING_ERRORS=()
-GAMING_INSTALLED=()
+# GAMING_INSTALLED removed — using global INSTALLED_PACKAGES from common.sh
 pacman_gaming_programs=()
 aur_gaming_programs=()
 flatpak_gaming_programs=()
@@ -111,7 +112,7 @@ install_pacman_packages() {
 	fi
 	ui_info "Installing ${#pacman_gaming_programs[@]} pacman packages for gaming..."
 	for pkg in "${pacman_gaming_programs[@]}"; do
-		if pacman_install "$pkg"; then GAMING_INSTALLED+=("$pkg"); else GAMING_ERRORS+=("$pkg (pacman)"); fi
+		if pacman_install "$pkg"; then INSTALLED_PACKAGES+=("$pkg"); else GAMING_ERRORS+=("$pkg (pacman)"); fi
 	done
 }
 
@@ -120,7 +121,7 @@ install_aur_packages() {
 	if [[ ${#aur_gaming_programs[@]} -eq 0 ]]; then ui_info "No AUR packages to install."; return; fi
 	ui_info "Installing ${#aur_gaming_programs[@]} AUR packages with paru..."
 	for pkg in "${aur_gaming_programs[@]}"; do
-		if paru_install "$pkg"; then GAMING_INSTALLED+=("$pkg (AUR)"); else GAMING_ERRORS+=("$pkg (AUR)"); fi
+		if paru_install "$pkg"; then INSTALLED_PACKAGES+=("$pkg (AUR)"); else GAMING_ERRORS+=("$pkg (AUR)"); fi
 	done
 }
 
@@ -136,7 +137,7 @@ install_flatpak_packages() {
 	fi
 	ui_info "Installing ${#flatpak_gaming_programs[@]} Flatpak applications for gaming..."
 	for pkg in "${flatpak_gaming_programs[@]}"; do
-		if flatpak_install "$pkg"; then GAMING_INSTALLED+=("$pkg (Flatpak)"); else GAMING_ERRORS+=("$pkg (Flatpak)"); fi
+		if flatpak_install "$pkg"; then INSTALLED_PACKAGES+=("$pkg (Flatpak)"); else GAMING_ERRORS+=("$pkg (Flatpak)"); fi
 	done
 }
 
@@ -160,9 +161,9 @@ configure_mangohud() {
 print_summary() {
 	echo ""
 	ui_header "Gaming Mode Setup Summary"
-	if [[ ${#GAMING_INSTALLED[@]} -gt 0 ]]; then
+	if [[ ${#INSTALLED_PACKAGES[@]} -gt 0 ]]; then
 		echo -e "${GREEN}Installed:${RESET}"
-		printf "  - %s\n" "${GAMING_INSTALLED[@]}"
+		printf "  - %s\n" "${INSTALLED_PACKAGES[@]}"
 	fi
 	if [[ ${#GAMING_ERRORS[@]} -gt 0 ]]; then
 		echo -e "${RED}Errors:${RESET}"

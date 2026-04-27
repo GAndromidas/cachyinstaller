@@ -1,32 +1,29 @@
 # This file contains all package lists for different installation modes and desktop environments
+# Modified version for CachyOS productivity/development setup (excluding gaming components)
+#
+# RESTRICTIONS APPLIED:
+# - EXCLUDED: wine, proton, steam, lutris, heroic, faugus, cachyos-gaming-meta
+# - EXCLUDED: lib32-* (except direct dependencies), Timeshift (CachyOS uses Snapper)
+# - EXCLUDED: bleachbit, samba, rustdesk (without relay), speedtest-cli, cmatrix, sl
 
 # Pacman packages (same for all installation modes)
 pacman:
   packages:
+    # Base utilities
     - name: android-tools
       description: "Android platform tools for device management"
     - name: bat
       description: "Cat clone with syntax highlighting"
-    - name: bleachbit
-      description: "System cleaner and optimizer"
     - name: btop
       description: "Resource monitor"
-    - name: chromium
-      description: "Web browser"
-    - name: cmatrix
-      description: "Matrix-style terminal animation"
     - name: cpupower
       description: "CPU frequency scaling tools"
-    - name: dosfstools
-      description: "DOS filesystem utilities"
     - name: duf
       description: "Disk usage utility"
     - name: firefox
-      description: "Web browser"
+      description: "Web browser (already installed in CachyOS)"
     - name: fwupd
       description: "Firmware update daemon"
-    - name: gnome-disk-utility
-      description: "Disk management utility"
     - name: hwinfo
       description: "Hardware information tool"
     - name: inxi
@@ -37,135 +34,463 @@ pacman:
       description: "Network configuration tools"
     - name: nmap
       description: "Network discovery and security auditing"
+    - name: noto-fonts
+      description: "Unicode coverage fonts"
+    - name: noto-fonts-cjk
+      description: "Chinese/Japanese/Korean font support"
+    - name: noto-fonts-emoji
+      description: "Emoji font support"
     - name: noto-fonts-extra
       description: "Additional Noto fonts"
-    - name: samba
-      description: "SMB/CIFS file and print server"
-    - name: sl
-      description: "Steam locomotive animation"
-    - name: speedtest-cli
-      description: "Internet speed test tool"
-    - name: sshfs
-      description: "FUSE-based SSH filesystem"
     - name: ttf-hack-nerd
       description: "Hack Nerd Font"
     - name: ttf-liberation
-      description: "Liberation fonts"
-    - name: unrar
-      description: "RAR archive extractor"
-    - name: wakeonlan
-      description: "Wake-on-LAN utility"
+      description: "Liberation fonts (Arial/Times compatible)"
     - name: xdg-desktop-portal-gtk
       description: "GTK backend for XDG Desktop Portal"
+    - name: xdg-user-dirs
+      description: "Creates standard user directories (Documents, Downloads, etc.)"
+    - name: xdg-utils
+      description: "XDG utilities (xdg-open, xdg-mime)"
 
-# Essential packages for different installation modes
+    # === MULTIMEDIA AND CODECS ===
+    - name: discord
+      description: "Voice/text chat - supports Wayland with DISCORD_ENABLE_OZONE=1"
+    - name: ffmpeg
+      description: "Codecs for video/audio"
+    - name: gstreamer
+      description: "Multimedia framework"
+    # gstreamer-vaapi: absorbed into gstreamer since v1.22
+    - name: gst-plugins-good
+      description: "GStreamer good plugins"
+    - name: gst-plugins-bad
+      description: "GStreamer bad plugins"
+    - name: gst-plugins-ugly
+      description: "GStreamer ugly plugins"
+    - name: gst-libav
+      description: "FFmpeg plugin for GStreamer"
+    # - name: obs-studio
+    #   description: "REMOVED - Using Flatpak version for faster updates and Wayland support"
+
+    # === VIDEO PLAYERS ===
+    - name: mpv
+      description: "Minimal video player with Wayland support"
+    - name: vlc
+      description: "Full-featured video player"
+
+    # === IMAGE EDITING ===
+    - name: gimp
+      description: "Full-featured image editor"
+    # pinta: not in official repos, only in AUR
+
+    # === SYSTEM ESSENTIALS ===
+    - name: cups
+      description: "Common UNIX Printing System"
+    - name: cups-pdf
+      description: "Virtual PDF printer"
+    - name: usbutils
+      description: "USB utilities (lsusb)"
+    - name: pciutils
+      description: "PCI utilities (lspci)"
+    - name: bluez
+      description: "Bluetooth stack"
+    - name: bluez-utils
+      description: "Bluetooth CLI tools"
+    - name: wl-clipboard
+      description: "Clipboard for Wayland"
+    - name: wayland-utils
+      description: "Wayland CLI utilities"
+
+    # === ARCHIVERS ===
+    - name: 7zip
+      description: "7z, zip, rar extraction support (renamed from p7zip)"
+    - name: rsync
+      description: "File synchronization tool"
+
+    # === DIAGNOSTICS ===
+    - name: htop
+      description: "Interactive process monitor"
+    - name: nvtop
+      description: "GPU monitor (NVIDIA + Intel)"
+    - name: lshw
+      description: "Hardware information"
+    - name: vulkan-tools
+      description: "Vulkan validation tools"
+
+    # === DEVELOPMENT BASE ===
+    - name: base-devel
+      description: "Build tools (gcc, make, binutils)"
+    - name: git
+      description: "Version control"
+    - name: cmake
+      description: "Cross-platform build system"
+    - name: pkg-config
+      description: "Library configuration tool"
+    - name: sqlite
+      description: "SQLite library (not a service)"
+    - name: lazygit
+      description: "TUI for git"
+
+    # === DEVELOPMENT LANGUAGES ===
+    - name: nodejs
+      description: "Node.js runtime"
+    - name: npm
+      description: "Node package manager"
+    - name: pnpm
+      description: "Fast Node package manager"
+    - name: rustup
+      description: "Rust toolchain manager"
+
+    # === INPUT-LEAP (KVM) ===
+    - name: input-leap
+      description: "Open-source KVM software for local network"
+
+    # === CLI UTILITIES ===
+    - name: ripgrep
+      description: "Fast grep alternative"
+    - name: fd
+      description: "Fast find alternative"
+    - name: zoxide
+      description: "Smart cd command"
+    - name: fzf
+      description: "Fuzzy finder"
+
+    # === HYPERLANDS TOOLS (installed but NOT configured) ===
+    - name: wofi
+      description: "Application launcher (rofi alternative)"
+    - name: cliphist
+      description: "Wayland clipboard history"
+    - name: grim
+      description: "Wayland screenshot"
+    - name: slurp
+      description: "Region selector for screenshots"
+    - name: mako
+      description: "Wayland notifications"
+    - name: brightnessctl
+      description: "Backlight control"
+    - name: playerctl
+      description: "Media player control"
+    - name: swappy
+      description: "Screenshot annotation editor (post grim+slurp capture)"
+    - name: xdg-desktop-portal-hyprland
+      description: "XDG portal for Hyprland"
+
+    # === XDG DESKTOP PORTAL STACK (required for Dolphin + KDE apps to open files) ===
+    # Portal architecture for Hyprland + KDE apps:
+    # - hyprland portal: handles screen capture and Hyprland-specific features
+    # - kde portal: handles file picker for Dolphin, Ark, Okular, Gwenview, Kate
+    # - gtk portal: fallback for GTK apps
+    # Config file created by shell_setup.sh: ~/.config/xdg-desktop-portal/hyprland-portals.conf
+    - name: xdg-desktop-portal
+      description: "Base portal daemon — required by all portal implementations"
+    - name: xdg-desktop-portal-kde
+      description: "KDE portal — file picker for Dolphin and all Qt/KDE apps"
+
+    # === HYPRLAND CORE ECOSYSTEM ===
+    - name: hyprpolkitagent
+      description: "Native Hyprland polkit authentication agent — replaces polkit-gnome"
+    - name: hypridle
+      description: "Hyprland idle daemon — triggers lock, screen off on inactivity"
+    - name: hyprlock
+      description: "Hyprland screen locker — integrates with hypridle"
+    - name: swww
+      description: "Animated wallpaper daemon (gif/video support)"
+    - name: waybar
+      description: "Highly customizable Wayland status bar"
+    - name: kitty
+      description: "GPU-accelerated terminal with full Wayland and ligature support"
+    - name: nwg-look
+      description: "GTK theme configurator for Wayland/Hyprland"
+    - name: qt5-wayland
+      description: "Qt5 Wayland backend — required for Qt5 apps in Hyprland"
+    - name: qt6-wayland
+      description: "Qt6 Wayland backend — required for Qt6 apps in Hyprland"
+    - name: qt5ct
+      description: "Qt5 theme configuration tool — controls Qt5 app appearance outside KDE"
+    - name: qt6ct
+      description: "Qt6 theme configuration tool — controls Qt6 app appearance outside KDE"
+    - name: kvantum
+      description: "SVG-based Qt theme engine — enables consistent Qt theming in Hyprland"
+
+    # === WALLPAPER / COLORS ===
+    - name: waypaper
+      description: "GUI frontend for swww, handles wallpaper selection"
+    - name: matugen
+      description: "Material You color palette generator from wallpaper"
+
+    # === KDE FILE MANAGER AND VIEWER STACK (Qt-native, works in Hyprland with KDE portal) ===
+    - name: dolphin
+      description: "KDE file manager — requires xdg-desktop-portal-kde to open files correctly"
+    - name: ark
+      description: "KDE archive manager — integrates with Dolphin context menu"
+    - name: gwenview
+      description: "KDE image viewer — handles image associations from Dolphin"
+    - name: okular
+      description: "KDE document viewer — PDF, epub, and more"
+    - name: kate
+      description: "KDE advanced text editor — syntax highlighting, split view, LSP support"
+    - name: qbittorrent
+      description: "Qt-native torrent client — consistent with KDE app stack"
+
+    # === AUDIO STACK ===
+    - name: pipewire
+      description: "Modern audio/video server — replaces PulseAudio and JACK"
+    - name: pipewire-pulse
+      description: "PulseAudio compatibility layer for PipeWire"
+    - name: wireplumber
+      description: "PipeWire session manager — required for PipeWire to function"
+    - name: pavucontrol
+      description: "PulseAudio volume control GUI — works with PipeWire via pipewire-pulse"
+
+    # === AI AND DEV WORKFLOW ===
+    - name: ollama
+      description: "Local AI model runner — core of local inference stack"
+    - name: python
+      description: "Python interpreter"
+    - name: python-pip
+      description: "Python package installer"
+    - name: direnv
+      description: "Per-project environment variable management"
+    - name: zellij
+      description: "Modern terminal multiplexer — session persistence for dev workflow"
+    - name: atuin
+      description: "Shell history manager with sync — complements Fish setup"
+    - name: nvidia-container-toolkit
+      description: "NVIDIA GPU support for Docker — required for Ollama with GPU in Docker"
+
+    # === NVIDIA WAYLAND COMPATIBILITY ===
+    - name: egl-wayland
+      description: "NVIDIA EGL Wayland interface — required for NVIDIA + Wayland sessions"
+    - name: libva-nvidia-driver
+      description: "VA-API driver for NVIDIA — hardware video decode in Wayland"
+
+    # cuda — NOT installed automatically (~5GB download)
+    # Install manually after validating your Hyprland session is stable:
+    #   sudo pacman -S cuda
+    # Required for: Blender OptiX/CUDA rendering, ML workflows, Ollama GPU mode
+    # Estimated download: ~5GB. Run: nvidia-smi to verify GPU is detected first.
+
+    - name: cmatrix
+      description: "Matrix rain animation"
+
+# === VIRTUALIZATION ===
+    - name: qemu-full
+      description: "Full QEMU with firmware"
+    - name: virt-manager
+      description: "VM manager"
+    - name: dnsmasq
+      description: "DHCP/DNS for VM networks"
+    # bridge-utils: absorbed by iproute2 (already in base system)
+    - name: swtpm
+      description: "TPM emulator for Windows 11"
+    - name: libvirt
+      description: "Virtualization API"
+
+    # === BACKUP AND DOTFILES ===
+    - name: chezmoi
+      description: "Dotfile manager"
+
+# Essential packages by installation mode
 essential:
   default:
     - name: filezilla
-      description: "FTP client for file transfers"
-    - name: kdenlive
-      description: "Video editor for KDE"
+      description: "FTP/SFTP client"
     - name: libreoffice-fresh
-      description: "Full-featured office suite"
-    - name: solaar
-      description: "Logitech device manager"
+      description: "Office suite"
+    - name: blender
+      description: "3D creation with CUDA/OptiX"
+    # cuda  # Instalación manual requerida — ver nota al final del install.sh
+    - name: python-numpy
+      description: "NumPy - required for simulation and physics addons in Blender"
+    - name: python-requests
+      description: "Requests - required for Blender addons that download assets"
+    # After installing Blender, configure GPU rendering:
+    # Edit → Preferences → System → Cycles Render Devices
+    # Select OptiX (faster on RTX GPUs) or CUDA
+    - name: obs-vkcapture
+      description: "Wayland capture for OBS"
+    # Diccionarios hunspell para español
+    # Cubre: genérico + México + España
+    # Usado por LibreOffice, Firefox y apps con
+    # corrector ortográfico integrado
+    # Nombres verificados con pacman (audit fix)
+    - name: hunspell-es_any
+      description: "Spanish spell checker (generic)"
+    - name: hunspell-es_mx
+      description: "Spanish spell checker (Mexico)"
+    - name: hunspell-es_es
+      description: "Spanish spell checker (Spain)"
 
   minimal:
     - name: mpv
-      description: "Media player"
+      description: "Minimal media player"
 
-# AUR packages for different installation modes (using paru - CachyOS default)
+# AUR packages
 aur:
   default:
-    - name: dropbox
-      description: "Cloud storage and file synchronization"
-    - name: rustdesk-bin
-      description: "Remote desktop software"
+    # Browsers and Communication
+    - name: google-chrome
+      description: "Official Chrome (Widevine/DRM required)"
+    - name: zen-browser-bin
+      description: "Firefox-based browser with modern UI, privacy-focused"
     - name: spotify
-      description: "Music streaming client"
+      description: "Music streaming"
+    - name: bitwarden
+      description: "Password manager"
+    # Development
+    - name: visual-studio-code-bin
+      description: "VS Code official"
+    - name: obsidian
+      description: "Markdown notes"
+    - name: postman-bin
+      description: "API client (industry standard)"
+    - name: rustdesk-bin
+      description: "Remote desktop with self-hosted relay"
+    - name: uv
+      description: "Ultra-fast Python package and project manager (Rust-based, replaces pip/venv)"
+    - name: mise
+      description: "Universal runtime version manager (Node, Python, etc.) — replaces nvm/pyenv"
+    # Utilities
     - name: ventoy-bin
-      description: "Bootable USB creation tool"
+      description: "Bootable USB creator"
     - name: via-bin
-      description: "Keyboard configuration utility"
+      description: "Keyboard configuration"
+    - name: unarchiver
+      description: "Universal archive extractor"
+    - name: pinta
+      description: "Simple image editor (Paint.NET style)"
+    - name: ttf-jetbrains-mono-nerd
+      description: "Dev font with Nerd icons"
+    - name: ttf-ms-fonts
+      description: "Microsoft fonts (Arial, Times, etc.)"
+    - name: wob
+      description: "Wayland overlay bar"
+    - name: ags
+      description: "Widgets for Hyprland"
+    # Backup
+    - name: snap-pac
+      description: "Snapper auto-snapshots for pacman"
 
   minimal:
     - name: rustdesk-bin
-      description: "Remote desktop software"
+      description: "Remote desktop"
 
 # Desktop environment specific packages
 desktop_environments:
-  kde:
+  hyprland:
     install:
-      - gwenview
-      - kdeconnect
-      - kwalletmanager
+      - xdg-desktop-portal
+      - xdg-desktop-portal-hyprland
+      - xdg-desktop-portal-kde
+      - xdg-desktop-portal-gtk
+      - xdg-user-dirs
+      - qt5-wayland
+      - qt6-wayland
+      - qt5ct
+      - qt6ct
       - kvantum
+      - hyprpolkitagent
+      - hypridle
+      - hyprlock
+      - hyprpaper
+      - waybar
+      - wofi
+      - kitty
+      - mako
+      - dolphin
+      - ark
+      - gwenview
       - okular
-      - python-pyqt6
+      - kate
       - qbittorrent
-      - spectacle
-    remove:
-      - htop
+      - wl-clipboard
+      - cliphist
+      - grim
+      - slurp
+      - pavucontrol
+      - playerctl
+      - nwg-look
+    remove: []
 
-  gnome:
+# Development section
+development:
+  languages:
     install:
-      - adw-gtk-theme
-      - celluloid
-      - dconf-editor
-      - gnome-tweaks
-      - gufw
-      - seahorse
-      - transmission-gtk
-    remove:
-      - epiphany
-      - gnome-contacts
-      - gnome-maps
-      - gnome-music
-      - gnome-tour
-      - htop
-      - snapshot
+      - name: nodejs
+        description: "Node.js runtime"
+      - name: npm
+        description: "Node package manager"
+      - name: pnpm
+        description: "Fast Node package manager"
+      - name: rustup
+        description: "Rust toolchain manager"
+    minimal:
+      - name: nodejs
+        description: "Node.js runtime"
 
-  cosmic:
+  build_tools:
     install:
-      - transmission-gtk
-    remove:
-      - htop
+      - name: base-devel
+        description: "Build tools (gcc, make)"
+      - name: cmake
+        description: "Build system"
+      - name: pkg-config
+        description: "Library config"
+      - name: git
+        description: "Version control"
+      - name: lazygit
+        description: "Git TUI"
+    minimal:
+      - name: base-devel
+        description: "Build tools"
+      - name: git
+        description: "Version control"
 
-# Flatpak packages for different desktop environments
-flatpak:
-  kde:
-    default:
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
+  cli_utilities:
+    install:
+      - name: bat
+        description: "Cat with highlighting"
+      - name: eza
+        description: "Modern ls"
+      - name: ripgrep
+        description: "Fast grep"
+      - name: fd
+        description: "Fast find"
+      - name: zoxide
+        description: "Smart cd"
+      - name: fzf
+        description: "Fuzzy finder"
+      - name: yazi
+        description: "File manager"
     minimal:
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
-  gnome:
-    default:
-      - name: com.mattjakeman.ExtensionManager
-        description: "GNOME Shell extension manager"
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
-    minimal:
-      - name: com.mattjakeman.ExtensionManager
-        description: "GNOME Shell extension manager"
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
-  cosmic:
-    default:
-      - name: dev.edfloreshz.CosmicTweaks
-        description: "Tweaks and customization for Cosmic desktop"
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
-    minimal:
-      - name: dev.edfloreshz.CosmicTweaks
-        description: "Tweaks and customization for Cosmic desktop"
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
-  generic: # Fallback for unsupported DEs/WMs
-    default:
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
-    minimal:
-      - name: it.mijorus.gearlever
-        description: "Graphical package manager for Flatpak"
+      - name: bat
+        description: "Cat with highlighting"
+      - name: ripgrep
+        description: "Fast grep"
+
+# Docker section
+docker:
+  install:
+    - name: docker
+      description: "Container runtime"
+    - name: docker-compose
+      description: "Container orchestration"
+    - name: lazydocker
+      description: "TUI for Docker container management"
+  minimal: []
+
+# Virtualization section
+virtualization:
+  install:
+    - name: qemu-full
+      description: "Full QEMU"
+    - name: virt-manager
+      description: "VM manager"
+    - name: dnsmasq
+      description: "DHCP/DNS"
+    # bridge-utils: absorbed by iproute2 (already in base system)
+    - name: swtpm
+      description: "TPM emulator"
+    - name: libvirt
+      description: "Virtualization API"
+  minimal: []

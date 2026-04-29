@@ -103,13 +103,25 @@ load_package_lists() {
 	return 0
 }
 
-# ===== Installation Functions =====
+# ===== Enhanced Installation Functions with Batch Support =====
 install_pacman_packages() {
 	if [[ ${#pacman_gaming_programs[@]} -eq 0 ]]; then
 		ui_info "No pacman packages for gaming mode to install."
 		return
 	fi
 	ui_info "Installing ${#pacman_gaming_programs[@]} pacman packages for gaming..."
+
+	# Try batch install first for speed
+	printf "${CYAN}Attempting batch installation...${RESET}\n"
+	if sudo pacman -S --noconfirm --needed "${pacman_gaming_programs[@]}" >/dev/null 2>&1; then
+		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
+		for pkg in "${pacman_gaming_programs[@]}"; do
+			GAMING_INSTALLED+=("$pkg")
+		done
+		return
+	fi
+
+	printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
 	for pkg in "${pacman_gaming_programs[@]}"; do
 		if pacman_install "$pkg"; then GAMING_INSTALLED+=("$pkg"); else GAMING_ERRORS+=("$pkg (pacman)"); fi
 	done
@@ -119,6 +131,18 @@ install_aur_packages() {
 	if ! command -v paru >/dev/null; then ui_warn "paru is not installed. Skipping AUR packages."; return; fi
 	if [[ ${#aur_gaming_programs[@]} -eq 0 ]]; then ui_info "No AUR packages to install."; return; fi
 	ui_info "Installing ${#aur_gaming_programs[@]} AUR packages with paru..."
+
+	# Try batch install first
+	printf "${CYAN}Attempting batch installation...${RESET}\n"
+	if paru -S --noconfirm --needed "${aur_gaming_programs[@]}" >/dev/null 2>&1; then
+		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
+		for pkg in "${aur_gaming_programs[@]}"; do
+			GAMING_INSTALLED+=("$pkg (AUR)")
+		done
+		return
+	fi
+
+	printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
 	for pkg in "${aur_gaming_programs[@]}"; do
 		if paru_install "$pkg"; then GAMING_INSTALLED+=("$pkg (AUR)"); else GAMING_ERRORS+=("$pkg (AUR)"); fi
 	done
@@ -135,6 +159,18 @@ install_flatpak_packages() {
 		return
 	fi
 	ui_info "Installing ${#flatpak_gaming_programs[@]} Flatpak applications for gaming..."
+
+	# Try batch install first
+	printf "${CYAN}Attempting batch installation...${RESET}\n"
+	if flatpak install -y --noninteractive flathub "${flatpak_gaming_programs[@]}" >/dev/null 2>&1; then
+		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
+		for pkg in "${flatpak_gaming_programs[@]}"; do
+			GAMING_INSTALLED+=("$pkg (Flatpak)")
+		done
+		return
+	fi
+
+	printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
 	for pkg in "${flatpak_gaming_programs[@]}"; do
 		if flatpak_install "$pkg"; then GAMING_INSTALLED+=("$pkg (Flatpak)"); else GAMING_ERRORS+=("$pkg (Flatpak)"); fi
 	done

@@ -262,60 +262,177 @@ install_package_generic() {
   local failed=0
 
   if [ $total -eq 0 ]; then
+    ui_info "No packages to install"
     return 0
   fi
 
-  ui_info "Installing ${total} packages via ${pkg_manager}..."
+  local manager_name
+  case "$pkg_manager" in
+    pacman) manager_name="Pacman" ;;
+    aur) manager_name="AUR" ;;
+    flatpak) manager_name="Flatpak" ;;
+    *) manager_name="Unknown" ;;
+  esac
+
+  if supports_gum; then
+    gum style --foreground 51 "Installing ${total} packages via ${manager_name}..."
+  else
+    echo -e "${CYAN}Installing ${total} packages via ${manager_name}...${RESET}"
+  fi
 
   for pkg in "${pkgs[@]}"; do
     ((current++))
-    local pkg_name
-    pkg_name=$(echo "$pkg" | awk '{print $1}')
 
+    # Check if already installed
     local already_installed=false
     case "$pkg_manager" in
-      pacman) pacman -Q "$pkg_name" &>/dev/null && already_installed=true ;;
-      flatpak) flatpak list | grep -q "$pkg_name" &>/dev/null && already_installed=true ;;
+      pacman)
+        pacman -Q "$pkg" &>/dev/null && already_installed=true
+        ;;
+      aur)
+        pacman -Q "$pkg" &>/dev/null && already_installed=true
+        ;;
+      flatpak)
+        flatpak list | grep -q "$pkg" &>/dev/null && already_installed=true
+        ;;
     esac
 
     if [ "$already_installed" = true ]; then
-      $VERBOSE && ui_info "[$current/$total] $pkg_name [SKIP] Already installed"
       continue
     fi
 
-    $VERBOSE && ui_info "[$current/$total] Installing $pkg_name..."
-
     local install_cmd
     case "$pkg_manager" in
-      pacman) install_cmd="sudo pacman -S --noconfirm --needed $pkg" ;;
-      flatpak) install_cmd="flatpak install --noninteractive -y $pkg" ;;
+      pacman)
+        install_cmd="sudo pacman -S --noconfirm --needed $pkg"
+        ;;
+      aur)
+        install_cmd="paru -S --noconfirm --needed $pkg"
+        ;;
+      flatpak)
+        install_cmd="sudo flatpak install --noninteractive -y $pkg"
+        ;;
     esac
 
+    # Dry-run mode: simulate installation
     if [ "${DRY_RUN:-false}" = true ]; then
-      ui_info "[DRY-RUN] Would install: $pkg_name"
-      INSTALLED_PACKAGES+=("$pkg_name")
+      ui_info "Dry-run: Would install $pkg"
+      ui_info "  Would execute: $install_cmd"
+      INSTALLED_PACKAGES+=("$pkg")
     else
-      # Silently attempt to install the package.
-      # Errors will be collected and shown in the final summary.
-      if eval "$install_cmd" >> "$INSTALL_LOG" 2>&1; then
-        INSTALLED_PACKAGES+=("$pkg_name")
+      # Capture both stdout and stderr for better error diagnostics
+      local error_output
+      if error_output=$(eval "$install_cmd" 2>&1); then
+        INSTALLED_PACKAGES+=("$pkg")
       else
-        FAILED_PACKAGES+=("$pkg_name")
-        log_error "Failed to install $pkg_name via $pkg_manager"
+        ui_error "Failed to install $pkg"
+        FAILED_PACKAGES+=("$pkg")
+        log_error "Failed to install $pkg via $manager_name" "Check network connection and package availability"
+        # Log the actual error for debugging
+        echo "$error_output" >> "$INSTALL_LOG"
+        # Show last line of error if verbose or if it's a critical error
+        if $VERBOSE || [[ "$error_output" == *"error:"* ]]; then
+          local last_error=$(echo "$error_output" | grep -i "error" | tail -1)
+          [ -n "$last_error" ] && log_warning "  Error: $last_error" "Try running the failed command manually for more details"
+        fi
         ((failed++))
       fi
     fi
   done
 
   if [ $failed -eq 0 ]; then
+    ui_success "Package installation completed"
     return 0
   else
+    ui_warn "Package installation completed with $failed failures" "Failed packages: ${FAILED_PACKAGES[*]}"
     return 1
   fi
 }
 
+# Function: install_packages_quietly
+# Description: Install packages via pacman (wrapper for generic installer)
+# Parameters: $@ - Packages to install
 install_packages_quietly() {
   install_package_generic "pacman" "$@"
+}
+
+# Enhanced single package installation functions with better error handling
+pacman_install_single() {
+  local pkg="$1"
+  local verbose="${2:-false}"
+  
+  if [ "$verbose" = true ]; then
+    printf "${CYAN}Installing:${RESET} %-30s" "$pkg"
+  fi
+  
+  # Check if already installed
+  if pacman -Q "$pkg" &>/dev/null; then
+    [ "$verbose" = true ] && printf "${GREEN} ✓ Already installed${RESET}\n"
+    return 0
+  fi
+  
+  # Try installation
+  if sudo pacman -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
+    [ "$verbose" = true ] && printf "${GREEN} ✓ Success${RESET}\n"
+    INSTALLED_PACKAGES+=("$pkg")
+    return 0
+  else
+    [ "$verbose" = true ] && printf "${RED} ✗ Failed${RESET}\n"
+    FAILED_PACKAGES+=("$pkg")
+    return 1
+  fi
+}
+
+paru_install_single() {
+  local pkg="$1"
+  local verbose="${2:-false}"
+  
+  if [ "$verbose" = true ]; then
+    printf "${CYAN}Installing AUR:${RESET} %-30s" "$pkg"
+  fi
+  
+  # Check if already installed
+  if pacman -Q "$pkg" &>/dev/null; then
+    [ "$verbose" = true ] && printf "${GREEN} ✓ Already installed${RESET}\n"
+    return 0
+  fi
+  
+  # Try installation
+  if paru -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
+    [ "$verbose" = true ] && printf "${GREEN} ✓ Success${RESET}\n"
+    INSTALLED_PACKAGES+=("$pkg")
+    return 0
+  else
+    [ "$verbose" = true ] && printf "${RED} ✗ Failed${RESET}\n"
+    FAILED_PACKAGES+=("$pkg")
+    return 1
+  fi
+}
+
+flatpak_install_single() {
+  local pkg="$1"
+  local verbose="${2:-false}"
+  
+  if [ "$verbose" = true ]; then
+    printf "${CYAN}Installing Flatpak:${RESET} %-30s" "$pkg"
+  fi
+  
+  # Check if already installed
+  if flatpak list | grep -q "$pkg" &>/dev/null; then
+    [ "$verbose" = true ] && printf "${GREEN} ✓ Already installed${RESET}\n"
+    return 0
+  fi
+  
+  # Try installation
+  if sudo flatpak install --noninteractive -y "$pkg" >/dev/null 2>&1; then
+    [ "$verbose" = true ] && printf "${GREEN} ✓ Success${RESET}\n"
+    INSTALLED_PACKAGES+=("$pkg")
+    return 0
+  else
+    [ "$verbose" = true ] && printf "${RED} ✗ Failed${RESET}\n"
+    FAILED_PACKAGES+=("$pkg")
+    return 1
+  fi
 }
 
 install_flatpak_quietly() {

@@ -2,10 +2,10 @@
 
 pacman:
   packages:
-    - name: cachyos-gaming-meta
-      description: "The official CachyOS meta-package for a complete gaming setup."
-    - name: discord
-      description: "Voice and text chat for gamers"
+    - name: steam
+      description: "Digital distribution platform for games"
+    - name: steam-devices
+      description: "Device support for Steam controller and VR"
     - name: gamemode
       description: "GameMode daemon for performance optimization"
     - name: lib32-gamemode
@@ -16,10 +16,14 @@ pacman:
       description: "Vulkan/OpenGL overlay for monitoring FPS and more"
     - name: lib32-mangohud
       description: "32-bit MangoHud libraries"
-    - name: steam
-      description: "Digital distribution platform for games"
     - name: wine
       description: "Compatibility layer for running Windows applications"
+    - name: discord
+      description: "Voice and text chat for gamers"
+    - name: gamescope
+      description: "SteamOS session compositing window manager"
+    - name: protontricks
+      description: "Run Winetricks commands for Steam Play/Proton games"
 
 flatpak:
   apps:

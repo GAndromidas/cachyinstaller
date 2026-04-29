@@ -120,19 +120,115 @@ fi
 # 5. Remove conflicting packages first
 remove_pacman_packages "${de_remove_pkgs[@]}"
 
-# 6. Install Pacman packages
-install_packages_quietly "${pacman_pkgs_to_install[@]}"
+# Enhanced Pacman package installation with batch and fallback
+install_pacman_packages() {
+  if [[ ${#pacman_pkgs_to_install[@]} -eq 0 ]]; then
+    ui_info "No pacman packages to install."
+    return
+  fi
+  ui_info "Installing ${#pacman_pkgs_to_install[@]} pacman packages..."
 
-# 7. Install AUR packages
+  # Try batch install first for speed
+  printf "${CYAN}Attempting batch installation...${RESET}\n"
+  if sudo pacman -S --noconfirm --needed "${pacman_pkgs_to_install[@]}" >/dev/null 2>&1; then
+    printf "${GREEN} ✓ Batch installation successful${RESET}\n"
+    for pkg in "${pacman_pkgs_to_install[@]}"; do
+      INSTALLED_PACKAGES+=("$pkg")
+    done
+    return
+  fi
+
+  printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
+  for pkg in "${pacman_pkgs_to_install[@]}"; do
+    if pacman_install_single "$pkg" true; then 
+      INSTALLED_PACKAGES+=("$pkg"); 
+    else 
+      FAILED_PACKAGES+=("$pkg (pacman)"); 
+    fi
+  done
+}
+
+# Enhanced AUR package installation with batch and fallback
+install_aur_packages_enhanced() {
+  if ! command -v paru >/dev/null; then 
+    ui_warn "paru is not installed. Skipping AUR packages."; 
+    return; 
+  fi
+  if [[ ${#aur_pkgs[@]} -eq 0 ]]; then 
+    ui_info "No AUR packages to install."; 
+    return; 
+  fi
+  ui_info "Installing ${#aur_pkgs[@]} AUR packages with paru..."
+
+  # Try batch install first
+  printf "${CYAN}Attempting batch installation...${RESET}\n"
+  if paru -S --noconfirm --needed "${aur_pkgs[@]}" >/dev/null 2>&1; then
+    printf "${GREEN} ✓ Batch installation successful${RESET}\n"
+    for pkg in "${aur_pkgs[@]}"; do
+      INSTALLED_PACKAGES+=("$pkg (AUR)")
+    done
+    return
+  fi
+
+  printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
+  for pkg in "${aur_pkgs[@]}"; do
+    if paru_install_single "$pkg" true; then 
+      INSTALLED_PACKAGES+=("$pkg (AUR)"); 
+    else 
+      FAILED_PACKAGES+=("$pkg (AUR)"); 
+    fi
+  done
+}
+
+# Enhanced Flatpak package installation with batch and fallback
+install_flatpak_packages_enhanced() {
+  if ! command -v flatpak >/dev/null; then 
+    ui_warn "flatpak is not installed. Skipping Flatpak packages."; 
+    return; 
+  fi
+  if ! flatpak remote-list | grep -q flathub; then
+    step "Adding Flathub remote"
+    flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  fi
+  if [[ ${#flatpak_pkgs[@]} -eq 0 ]]; then 
+    ui_info "No Flatpak applications to install."; 
+    return; 
+  fi
+  ui_info "Installing ${#flatpak_pkgs[@]} Flatpak applications..."
+
+  # Try batch install first
+  printf "${CYAN}Attempting batch installation...${RESET}\n"
+  if sudo flatpak install --noninteractive -y "${flatpak_pkgs[@]}" >/dev/null 2>&1; then
+    printf "${GREEN} ✓ Batch installation successful${RESET}\n"
+    for pkg in "${flatpak_pkgs[@]}"; do
+      INSTALLED_PACKAGES+=("$pkg (Flatpak)")
+    done
+    return
+  fi
+
+  printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
+  for pkg in "${flatpak_pkgs[@]}"; do
+    if flatpak_install_single "$pkg" true; then 
+      INSTALLED_PACKAGES+=("$pkg (Flatpak)"); 
+    else 
+      FAILED_PACKAGES+=("$pkg (Flatpak)"); 
+    fi
+  done
+}
+
+# 6. Install Pacman packages with enhanced batch/fallback
+install_pacman_packages
+
+# 7. Install AUR packages with enhanced batch/fallback
 if [ ${#aur_pkgs[@]} -gt 0 ]; then
   if command_exists paru; then
-    install_aur_packages "${aur_pkgs[@]}"
+    install_aur_packages_enhanced
   else
     ui_warn "AUR helper 'paru' not found. Skipping AUR packages."
   fi
 fi
 
-# 8. Install Flatpak packages
+# 8. Install Flatpak packages with enhanced batch/fallback
 if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
     ui_info "Setting up Flatpak..."
     if ! command_exists flatpak; then
@@ -148,7 +244,7 @@ if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
     else
         ui_info "[DRY_RUN] Would ensure Flathub remote exists."
     fi
-    install_flatpak_quietly "${flatpak_pkgs[@]}"
+    install_flatpak_packages_enhanced
 fi
 
 return 0

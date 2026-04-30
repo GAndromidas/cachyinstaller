@@ -86,67 +86,90 @@ read_yaml_packages() {
 	fi
 }
 
-# ===== Mesa-Git Replacement Function =====
-install_mesa_git_for_steam() {
-	ui_info "Preparing mesa-git packages for Steam installation..."
+# ===== CachyOS Steam Installation with Mesa-Git =====
+install_steam_with_mesa_git() {
+	ui_info "Installing Steam with proper CachyOS mesa-git dependencies..."
 	
-	# Try different mesa-git package strategies
-	local mesa_packages_success=0
-	local mesa_packages_failed=0
+	# CachyOS-specific approach: Handle interactive prompts automatically
+	local steam_installed=false
 	
-	# Strategy 1: Try mesa-git packages from official repositories
-	ui_info "Attempting to install mesa-git packages from repositories..."
-	local mesa_git_packages=("mesa-git" "lib32-mesa-git")
+	# Strategy 1: Install Steam with automatic responses to CachyOS prompts
+	ui_info "Attempting Steam installation with CachyOS-specific handling..."
 	
-	for pkg in "${mesa_git_packages[@]}"; do
-		ui_info "Installing $pkg to replace standard mesa..."
-		if sudo pacman -S --noconfirm --needed --overwrite "*" "$pkg" >/dev/null 2>&1; then 
-			GAMING_INSTALLED+=("$pkg")
-			((mesa_packages_success++))
-		else 
-			((mesa_packages_failed++))
-			ui_warn "Failed to install $pkg from repositories"
-		fi
-	done
+	# Create expect script or use printf to handle interactive prompts
+	{
+		# Select mesa-git (option 1) when prompted for vulkan driver
+		echo "1"
+		# Confirm mesa removal when prompted
+		echo "y"
+	} | sudo pacman -S --noconfirm steam >/dev/null 2>&1
 	
-	# Strategy 2: If repository failed, try AUR packages
-	if [ $mesa_packages_failed -gt 0 ] && command -v paru >/dev/null; then
-		ui_info "Repository packages failed, trying AUR packages..."
-		local aur_mesa_packages=("amdonly-gaming-mesa-git" "lib32-amdonly-gaming-mesa-git")
-		
-		for pkg in "${aur_mesa_packages[@]}"; do
-			ui_info "Installing $pkg from AUR..."
-			if paru_install "$pkg"; then 
-				GAMING_INSTALLED+=("$pkg (AUR)")
-				((mesa_packages_success++))
-			else 
-				((mesa_packages_failed++))
-				ui_warn "Failed to install $pkg from AUR"
-			fi
-		done
-	fi
-	
-	# Strategy 3: If all mesa-git failed, try forcing Steam installation
-	if [ $mesa_packages_success -eq 0 ]; then
-		ui_warn "All mesa-git packages failed to install"
-		ui_info "Attempting to install Steam with standard mesa packages..."
-		
-		# Try installing Steam directly to see if it works
-		if sudo pacman -S --noconfirm --needed steam >/dev/null 2>&1; then
-			GAMING_INSTALLED+=("steam (with standard mesa)")
-			ui_success "Steam installed with standard mesa packages"
-			return 0
-		else
-			ui_error "Steam installation failed even with standard mesa"
-			return 1
-		fi
-	fi
-	
-	if [ $mesa_packages_success -gt 0 ]; then
-		ui_success "Mesa-git packages installed successfully ($mesa_packages_success/$((mesa_packages_success + mesa_packages_failed)))"
+	if [ $? -eq 0 ]; then
+		GAMING_INSTALLED+=("steam (with mesa-git)")
+		steam_installed=true
+		ui_success "Steam installed successfully with mesa-git"
 		return 0
-	else
-		ui_error "All mesa-git installation attempts failed"
+	fi
+	
+	# Strategy 2: Try installing mesa-git first, then Steam
+	if [ "$steam_installed" = false ]; then
+		ui_info "Direct installation failed, trying mesa-git first..."
+		
+		# Remove conflicting mesa packages first
+		ui_info "Removing standard mesa packages..."
+		sudo pacman -Rns --noconfirm mesa lib32-mesa >/dev/null 2>&1 || true
+		
+		# Install mesa-git
+		if sudo pacman -S --noconfirm --needed --overwrite "*" mesa-git lib32-mesa-git >/dev/null 2>&1; then
+			ui_info "Mesa-git installed, retrying Steam..."
+			if sudo pacman -S --noconfirm --needed --overwrite "*" steam >/dev/null 2>&1; then
+				GAMING_INSTALLED+=("steam (with mesa-git)")
+				steam_installed=true
+				ui_success "Steam installed with mesa-git"
+				return 0
+			fi
+		fi
+	fi
+	
+	# Strategy 3: Try standard mesa if mesa-git fails
+	if [ "$steam_installed" = false ]; then
+		ui_info "Trying standard mesa approach..."
+		
+		# Remove any conflicting packages
+		sudo pacman -Rns --noconfirm mesa-git lib32-mesa-git >/dev/null 2>&1 || true
+		
+		# Install standard mesa
+		if sudo pacman -S --noconfirm --needed --overwrite "*" mesa lib32-mesa >/dev/null 2>&1; then
+			# Try Steam with standard mesa
+			{
+				# Select appropriate vulkan driver (mesa option)
+				echo "13"  # vulkan-radeon for AMD, or use 1 for mesa-git if available
+				# Confirm any conflicts
+				echo "y"
+			} | sudo pacman -S --noconfirm steam >/dev/null 2>&1
+			
+			if [ $? -eq 0 ]; then
+				GAMING_INSTALLED+=("steam (with standard mesa)")
+				steam_installed=true
+				ui_success "Steam installed with standard mesa"
+				return 0
+			fi
+		fi
+	fi
+	
+	# Strategy 4: Force Steam installation as last resort
+	if [ "$steam_installed" = false ]; then
+		ui_warn "All strategies failed, trying force installation..."
+		if sudo pacman -S --noconfirm --needed --overwrite "*" steam >/dev/null 2>&1; then
+			GAMING_INSTALLED+=("steam (forced)")
+			steam_installed=true
+			ui_success "Steam force-installed (may have dependency issues)"
+			return 0
+		fi
+	fi
+	
+	if [ "$steam_installed" = false ]; then
+		ui_error "All Steam installation attempts failed"
 		return 1
 	fi
 }
@@ -307,8 +330,8 @@ main() {
 		return 1
 	fi
 
-	# Install mesa-git packages first to enable Steam installation
-	install_mesa_git_for_steam
+	# Install Steam with proper CachyOS mesa-git handling
+	install_steam_with_mesa_git
 	
 	install_pacman_packages
 	install_aur_packages

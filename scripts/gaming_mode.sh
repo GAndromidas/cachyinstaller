@@ -90,33 +90,63 @@ read_yaml_packages() {
 install_mesa_git_for_steam() {
 	ui_info "Preparing mesa-git packages for Steam installation..."
 	
-	# Check if mesa-git packages are available in AUR
-	if ! command -v paru >/dev/null; then 
-		ui_warn "paru is not available. Cannot install mesa-git packages."
-		ui_warn "Steam installation may fail without mesa-git replacement."
-		return 1
-	fi
+	# Try different mesa-git package strategies
+	local mesa_packages_success=0
+	local mesa_packages_failed=0
 	
-	# Install mesa-git packages first to replace standard mesa
+	# Strategy 1: Try mesa-git packages from official repositories
+	ui_info "Attempting to install mesa-git packages from repositories..."
 	local mesa_git_packages=("mesa-git" "lib32-mesa-git")
-	local packages_installed=0
 	
 	for pkg in "${mesa_git_packages[@]}"; do
 		ui_info "Installing $pkg to replace standard mesa..."
-		if paru_install "$pkg"; then 
-			GAMING_INSTALLED+=("$pkg (AUR)")
-			((packages_installed++))
+		if sudo pacman -S --noconfirm --needed --overwrite "*" "$pkg" >/dev/null 2>&1; then 
+			GAMING_INSTALLED+=("$pkg")
+			((mesa_packages_success++))
 		else 
-			GAMING_ERRORS+=("$pkg (AUR)")
-			ui_warn "Failed to install $pkg - Steam installation may fail"
+			((mesa_packages_failed++))
+			ui_warn "Failed to install $pkg from repositories"
 		fi
 	done
 	
-	if [ $packages_installed -eq 2 ]; then
-		ui_success "Mesa-git packages installed successfully"
+	# Strategy 2: If repository failed, try AUR packages
+	if [ $mesa_packages_failed -gt 0 ] && command -v paru >/dev/null; then
+		ui_info "Repository packages failed, trying AUR packages..."
+		local aur_mesa_packages=("amdonly-gaming-mesa-git" "lib32-amdonly-gaming-mesa-git")
+		
+		for pkg in "${aur_mesa_packages[@]}"; do
+			ui_info "Installing $pkg from AUR..."
+			if paru_install "$pkg"; then 
+				GAMING_INSTALLED+=("$pkg (AUR)")
+				((mesa_packages_success++))
+			else 
+				((mesa_packages_failed++))
+				ui_warn "Failed to install $pkg from AUR"
+			fi
+		done
+	fi
+	
+	# Strategy 3: If all mesa-git failed, try forcing Steam installation
+	if [ $mesa_packages_success -eq 0 ]; then
+		ui_warn "All mesa-git packages failed to install"
+		ui_info "Attempting to install Steam with standard mesa packages..."
+		
+		# Try installing Steam directly to see if it works
+		if sudo pacman -S --noconfirm --needed steam >/dev/null 2>&1; then
+			GAMING_INSTALLED+=("steam (with standard mesa)")
+			ui_success "Steam installed with standard mesa packages"
+			return 0
+		else
+			ui_error "Steam installation failed even with standard mesa"
+			return 1
+		fi
+	fi
+	
+	if [ $mesa_packages_success -gt 0 ]; then
+		ui_success "Mesa-git packages installed successfully ($mesa_packages_success/$((mesa_packages_success + mesa_packages_failed)))"
 		return 0
 	else
-		ui_warn "Some mesa-git packages failed to install"
+		ui_error "All mesa-git installation attempts failed"
 		return 1
 	fi
 }
@@ -144,20 +174,40 @@ install_pacman_packages() {
 		ui_info "No pacman packages for gaming mode to install."
 		return
 	fi
-	ui_info "Installing ${#pacman_gaming_programs[@]} pacman packages for gaming..."
+	
+	# Filter out Steam if it was already installed during mesa-git process
+	local filtered_packages=()
+	local steam_already_installed=false
+	
+	# Check if Steam was already installed
+	for pkg in "${pacman_gaming_programs[@]}"; do
+		if [[ "$pkg" == "steam" ]] && pacman -Q "$pkg" &>/dev/null; then
+			steam_already_installed=true
+			ui_info "Steam already installed during mesa-git process, skipping..."
+		else
+			filtered_packages+=("$pkg")
+		fi
+	done
+	
+	if [[ ${#filtered_packages[@]} -eq 0 ]]; then
+		ui_info "All pacman packages already installed."
+		return
+	fi
+	
+	ui_info "Installing ${#filtered_packages[@]} pacman packages for gaming..."
 
 	# Try batch install first for speed
 	printf "${CYAN}Attempting batch installation...${RESET}\n"
-	if sudo pacman -S --noconfirm --needed "${pacman_gaming_programs[@]}" >/dev/null 2>&1; then
+	if sudo pacman -S --noconfirm --needed "${filtered_packages[@]}" >/dev/null 2>&1; then
 		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
-		for pkg in "${pacman_gaming_programs[@]}"; do
+		for pkg in "${filtered_packages[@]}"; do
 			GAMING_INSTALLED+=("$pkg")
 		done
 		return
 	fi
 
 	printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
-	for pkg in "${pacman_gaming_programs[@]}"; do
+	for pkg in "${filtered_packages[@]}"; do
 		if pacman_install "$pkg"; then GAMING_INSTALLED+=("$pkg"); else GAMING_ERRORS+=("$pkg (pacman)"); fi
 	done
 }

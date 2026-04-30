@@ -86,90 +86,30 @@ read_yaml_packages() {
 	fi
 }
 
-# ===== CachyOS Steam Installation with Mesa-Git =====
-install_steam_with_mesa_git() {
-	ui_info "Installing Steam with proper CachyOS mesa-git dependencies..."
+# ===== Interactive Steam Installation for CachyOS =====
+install_steam_interactive() {
+	ui_info "Installing Steam with interactive CachyOS prompts..."
 	
-	# CachyOS-specific approach: Handle interactive prompts automatically
-	local steam_installed=false
-	
-	# Strategy 1: Install Steam with automatic responses to CachyOS prompts
-	ui_info "Attempting Steam installation with CachyOS-specific handling..."
-	
-	# Create expect script or use printf to handle interactive prompts
-	{
-		# Select mesa-git (option 1) when prompted for vulkan driver
-		echo "1"
-		# Confirm mesa removal when prompted
-		echo "y"
-	} | sudo pacman -S --noconfirm steam >/dev/null 2>&1
-	
-	if [ $? -eq 0 ]; then
-		GAMING_INSTALLED+=("steam (with mesa-git)")
-		steam_installed=true
-		ui_success "Steam installed successfully with mesa-git"
+	# Check if Steam is already installed
+	if pacman -Q steam &>/dev/null; then
+		ui_info "Steam is already installed, skipping..."
+		GAMING_INSTALLED+=("steam (already installed)")
 		return 0
 	fi
 	
-	# Strategy 2: Try installing mesa-git first, then Steam
-	if [ "$steam_installed" = false ]; then
-		ui_info "Direct installation failed, trying mesa-git first..."
-		
-		# Remove conflicting mesa packages first
-		ui_info "Removing standard mesa packages..."
-		sudo pacman -Rns --noconfirm mesa lib32-mesa >/dev/null 2>&1 || true
-		
-		# Install mesa-git
-		if sudo pacman -S --noconfirm --needed --overwrite "*" mesa-git lib32-mesa-git >/dev/null 2>&1; then
-			ui_info "Mesa-git installed, retrying Steam..."
-			if sudo pacman -S --noconfirm --needed --overwrite "*" steam >/dev/null 2>&1; then
-				GAMING_INSTALLED+=("steam (with mesa-git)")
-				steam_installed=true
-				ui_success "Steam installed with mesa-git"
-				return 0
-			fi
-		fi
-	fi
+	# Interactive Steam installation - let user handle CachyOS prompts
+	ui_info "Starting interactive Steam installation..."
+	ui_info "You will be prompted to select:"
+	ui_info "  1. Vulkan driver (choose mesa-git for best gaming performance)"
+	ui_info "  2. Package conflicts (confirm mesa removal if prompted)"
 	
-	# Strategy 3: Try standard mesa if mesa-git fails
-	if [ "$steam_installed" = false ]; then
-		ui_info "Trying standard mesa approach..."
-		
-		# Remove any conflicting packages
-		sudo pacman -Rns --noconfirm mesa-git lib32-mesa-git >/dev/null 2>&1 || true
-		
-		# Install standard mesa
-		if sudo pacman -S --noconfirm --needed --overwrite "*" mesa lib32-mesa >/dev/null 2>&1; then
-			# Try Steam with standard mesa
-			{
-				# Select appropriate vulkan driver (mesa option)
-				echo "13"  # vulkan-radeon for AMD, or use 1 for mesa-git if available
-				# Confirm any conflicts
-				echo "y"
-			} | sudo pacman -S --noconfirm steam >/dev/null 2>&1
-			
-			if [ $? -eq 0 ]; then
-				GAMING_INSTALLED+=("steam (with standard mesa)")
-				steam_installed=true
-				ui_success "Steam installed with standard mesa"
-				return 0
-			fi
-		fi
-	fi
-	
-	# Strategy 4: Force Steam installation as last resort
-	if [ "$steam_installed" = false ]; then
-		ui_warn "All strategies failed, trying force installation..."
-		if sudo pacman -S --noconfirm --needed --overwrite "*" steam >/dev/null 2>&1; then
-			GAMING_INSTALLED+=("steam (forced)")
-			steam_installed=true
-			ui_success "Steam force-installed (may have dependency issues)"
-			return 0
-		fi
-	fi
-	
-	if [ "$steam_installed" = false ]; then
-		ui_error "All Steam installation attempts failed"
+	# Run Steam installation interactively
+	if sudo pacman -S steam; then
+		GAMING_INSTALLED+=("steam (interactive)")
+		ui_success "Steam installed successfully"
+		return 0
+	else
+		ui_error "Steam installation failed"
 		return 1
 	fi
 }
@@ -330,8 +270,8 @@ main() {
 		return 1
 	fi
 
-	# Install Steam with proper CachyOS mesa-git handling
-	install_steam_with_mesa_git
+	# Install Steam with interactive prompts for CachyOS
+	install_steam_interactive
 	
 	install_pacman_packages
 	install_aur_packages

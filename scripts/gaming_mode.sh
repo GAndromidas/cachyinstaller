@@ -86,6 +86,41 @@ read_yaml_packages() {
 	fi
 }
 
+# ===== Mesa-Git Replacement Function =====
+install_mesa_git_for_steam() {
+	ui_info "Preparing mesa-git packages for Steam installation..."
+	
+	# Check if mesa-git packages are available in AUR
+	if ! command -v paru >/dev/null; then 
+		ui_warn "paru is not available. Cannot install mesa-git packages."
+		ui_warn "Steam installation may fail without mesa-git replacement."
+		return 1
+	fi
+	
+	# Install mesa-git packages first to replace standard mesa
+	local mesa_git_packages=("mesa-git" "lib32-mesa-git")
+	local packages_installed=0
+	
+	for pkg in "${mesa_git_packages[@]}"; do
+		ui_info "Installing $pkg to replace standard mesa..."
+		if paru_install "$pkg"; then 
+			GAMING_INSTALLED+=("$pkg (AUR)")
+			((packages_installed++))
+		else 
+			GAMING_ERRORS+=("$pkg (AUR)")
+			ui_warn "Failed to install $pkg - Steam installation may fail"
+		fi
+	done
+	
+	if [ $packages_installed -eq 2 ]; then
+		ui_success "Mesa-git packages installed successfully"
+		return 0
+	else
+		ui_warn "Some mesa-git packages failed to install"
+		return 1
+	fi
+}
+
 # ===== Load All Package Lists from YAML =====
 load_package_lists() {
 	if [[ ! -f "$GAMING_YAML" ]]; then
@@ -222,6 +257,9 @@ main() {
 		return 1
 	fi
 
+	# Install mesa-git packages first to enable Steam installation
+	install_mesa_git_for_steam
+	
 	install_pacman_packages
 	install_aur_packages
 	install_flatpak_packages

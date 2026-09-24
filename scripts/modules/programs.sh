@@ -2,7 +2,7 @@
 set -uo pipefail
 
 # --- Configuration & Dependencies ---
-CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../configs" && pwd)"
+CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../configs" && pwd)"
 PROGRAMS_YAML="$CONFIGS_DIR/programs.yaml"
 
 # This script depends on 'yq' for parsing the YAML file.
@@ -50,7 +50,8 @@ remove_pacman_packages() {
 
 
 
-# --- UI Helper for this script ---
+# --- UI Helper for this script (guarded: common.sh provides the same helper) ---
+if ! declare -f print_package_summary >/dev/null 2>&1; then
 print_package_summary() {
   local title="$1"
   shift
@@ -64,6 +65,7 @@ print_package_summary() {
     printf '%s\n' "${pkgs[@]}" | sed '/^$/d' | column | sed 's/^/  /'
   fi
 }
+fi
 
 # --- Main Logic ---
 

@@ -1,6 +1,14 @@
 #!/bin/bash
 set -uo pipefail
 
+# Fish shell enhancement for CachyOS (Fish behavior unchanged).
+# DRY-RUN guard: every mutating section below checks DRY_RUN and only
+# prints a preview when set — a preview run never writes files, installs
+# plugins, or changes the login shell.
+# Idempotency: config files are only installed when missing or different
+# (cmp check), /etc/shells is appended only when absent, plugins install
+# through fisher (already-installed plugins are no-ops).
+
 # --- Sanity Checks ---
 if ! command_exists fish; then
   log_error "Fish shell not found! This script is designed for CachyOS which includes Fish by default."
@@ -8,7 +16,7 @@ if ! command_exists fish; then
 fi
 
 # --- Variables ---
-CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../configs" && pwd)"
+CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../configs" && pwd)"
 FISH_CONFIG_DIR="$HOME/.config/fish"
 FASTFETCH_CONFIG_DIR="$HOME/.config/fastfetch"
 
@@ -36,30 +44,49 @@ if [ "${DRY_RUN:-false}" = false ]; then
     ui_info "  - Using default fish config."
   fi
 
-  # Deploy config.fish
+  # Deploy config.fish (idempotent: skip when destination is identical)
   if [ ! -f "$FISH_CONFIG_DIR/config.fish" ] || [ "$FISH_SOURCE" != "$CONFIGS_DIR/fish" ]; then
     if [ -f "$FISH_SOURCE/config.fish" ]; then
-      cp "$FISH_SOURCE/config.fish" "$FISH_CONFIG_DIR/config.fish"
-      ui_info "  - Fish config installed from $FISH_SOURCE."
+      if [ -f "$FISH_CONFIG_DIR/config.fish" ] && cmp -s "$FISH_SOURCE/config.fish" "$FISH_CONFIG_DIR/config.fish"; then
+        ui_info "  - Fish config already up to date, skipping."
+      else
+        cp "$FISH_SOURCE/config.fish" "$FISH_CONFIG_DIR/config.fish"
+        ui_info "  - Fish config installed from $FISH_SOURCE."
+      fi
     fi
   fi
 
-  # Deploy starship.toml
+  # Deploy starship.toml (idempotent: skip when destination is identical)
   if [ ! -f "$FISH_CONFIG_DIR/starship.toml" ] || [ "$FISH_SOURCE" != "$CONFIGS_DIR/fish" ]; then
     if [ -f "$FISH_SOURCE/starship.toml" ]; then
-      cp "$FISH_SOURCE/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
-      ui_info "  - Starship config installed from $FISH_SOURCE."
+      if [ -f "$FISH_CONFIG_DIR/starship.toml" ] && cmp -s "$FISH_SOURCE/starship.toml" "$FISH_CONFIG_DIR/starship.toml"; then
+        ui_info "  - Starship config already up to date, skipping."
+      else
+        cp "$FISH_SOURCE/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
+        ui_info "  - Starship config installed from $FISH_SOURCE."
+      fi
     elif [ -f "$CONFIGS_DIR/fish/starship.toml" ]; then
-      cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
-      ui_info "  - Default starship config installed."
+      if [ -f "$FISH_CONFIG_DIR/starship.toml" ] && cmp -s "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"; then
+        ui_info "  - Starship config already up to date, skipping."
+      else
+        cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
+        ui_info "  - Default starship config installed."
+      fi
     fi
   fi
 
-  # Deploy conf.d files if they exist in the source
+  # Deploy conf.d files if they exist in the source (idempotent per file)
   if [ -d "$FISH_SOURCE/conf.d" ]; then
     mkdir -p "$FISH_CONFIG_DIR/conf.d"
-    cp "$FISH_SOURCE/conf.d"/* "$FISH_CONFIG_DIR/conf.d/" 2>/dev/null && \
-      ui_info "  - conf.d files installed from $FISH_SOURCE."
+    local conf_src=""
+    for conf_src in "$FISH_SOURCE/conf.d"/*; do
+      [ -e "$conf_src" ] || continue
+      if [ -f "$FISH_CONFIG_DIR/conf.d/$(basename "$conf_src")" ] && cmp -s "$conf_src" "$FISH_CONFIG_DIR/conf.d/$(basename "$conf_src")"; then
+        continue
+      fi
+      cp "$conf_src" "$FISH_CONFIG_DIR/conf.d/" 2>/dev/null && \
+        ui_info "  - conf.d file installed: $(basename "$conf_src")"
+    done
   fi
 else
   ui_info "[DRY-RUN] Would copy Fish configs from priority source if needed."
@@ -108,7 +135,7 @@ if [[ "$SHELL" != "$fish_path" ]]; then
   ui_info "Setting Fish as the default shell..."
   if [ "${DRY_RUN:-false}" = false ]; then
     # Add fish to /etc/shells if it's not already there
-    if ! grep -q "^$fish_path$" /etc/shells; then
+    if ! grep -qxF "$fish_path" /etc/shells; then
       ui_info "Adding '$fish_path' to /etc/shells"
       echo "$fish_path" | sudo tee -a /etc/shells >/dev/null
     fi

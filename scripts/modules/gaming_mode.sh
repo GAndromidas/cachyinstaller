@@ -5,11 +5,14 @@ set -uo pipefail
 # Get the directory where this script is located, resolving symlinks
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CACHYINSTALLER_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIGS_DIR="$CACHYINSTALLER_ROOT/configs"
 GAMING_YAML="$CONFIGS_DIR/gaming_mode.yaml"
 
-source "$SCRIPT_DIR/common.sh"
+if ! declare -f ui_info >/dev/null 2>&1; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/../common.sh"
+fi
 
 # ===== Globals =====
 GAMING_ERRORS=()
@@ -69,7 +72,7 @@ ensure_yq() {
 	return 0
 }
 
-read_yaml_packages() {
+read_gaming_yaml_packages() {
 	local yaml_file="$1"
 	local yaml_path="$2"
 	local -n packages_array="$3"
@@ -125,9 +128,9 @@ load_package_lists() {
 		return 1
 	fi
 
-	read_yaml_packages "$GAMING_YAML" ".pacman.packages" pacman_gaming_programs
-	read_yaml_packages "$GAMING_YAML" ".aur.packages" aur_gaming_programs
-	read_yaml_packages "$GAMING_YAML" ".flatpak.apps" flatpak_gaming_programs
+	read_gaming_yaml_packages "$GAMING_YAML" ".pacman.packages" pacman_gaming_programs
+	read_gaming_yaml_packages "$GAMING_YAML" ".aur.packages" aur_gaming_programs
+	read_gaming_yaml_packages "$GAMING_YAML" ".flatpak.apps" flatpak_gaming_programs
 	return 0
 }
 
@@ -232,6 +235,11 @@ configure_mangohud() {
 
 	mkdir -p "$mangohud_config_dir"
 
+	if [ -f "$mangohud_config_dir/MangoHud.conf" ]; then
+		ui_info "MangoHud configuration already exists, skipping."
+		return 0
+	fi
+
 	if [ -f "$mangohud_config_source" ]; then
 		cp "$mangohud_config_source" "$mangohud_config_dir/MangoHud.conf"
 		log_success "MangoHud configuration copied successfully."
@@ -241,7 +249,7 @@ configure_mangohud() {
 }
 
 # ===== Summary =====
-print_summary() {
+print_gaming_summary() {
 	echo ""
 	ui_header "Gaming Mode Setup Summary"
 	if [[ ${#GAMING_INSTALLED[@]} -gt 0 ]]; then
@@ -263,6 +271,11 @@ main() {
 	local description="This includes popular tools like Steam, Wine, GameMode, MangoHud, Heroic Games Launcher, Faugus Launcher and more."
 	if ! gum_confirm "Enable Gaming Mode?" "$description"; then
 		ui_info "Gaming Mode skipped."
+		return 2
+	fi
+
+	if [[ "${DRY_RUN:-false}" == true ]]; then
+		ui_info "Dry-run: Gaming Mode packages would be evaluated here."
 		return 0
 	fi
 
@@ -277,7 +290,7 @@ main() {
 	install_aur_packages
 	install_flatpak_packages
 	configure_mangohud
-	print_summary
+	print_gaming_summary
 	ui_success "Gaming Mode setup completed."
 }
 

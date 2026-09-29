@@ -26,7 +26,7 @@ flatpak_gaming_programs=()
 pacman_install() {
 	local pkg="$1"
 	printf "${CYAN}Installing Pacman package:${RESET} %-30s" "$pkg"
-	if sudo pacman -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
+	if sudo pacman -S --noconfirm --needed "$pkg" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Success${RESET}\n"
 		return 0
 	else
@@ -38,7 +38,7 @@ pacman_install() {
 paru_install() {
 	local pkg="$1"
 	printf "${CYAN}Installing AUR package:${RESET} %-30s" "$pkg"
-	if paru -S --noconfirm --needed "$pkg" >/dev/null 2>&1; then
+	if paru -S --noconfirm --needed "$pkg" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Success${RESET}\n"
 		return 0
 	else
@@ -50,7 +50,7 @@ paru_install() {
 flatpak_install() {
 	local pkg="$1"
 	printf "${CYAN}Installing Flatpak app:${RESET} %-30s" "$pkg"
-	if flatpak install -y --noninteractive flathub "$pkg" >/dev/null 2>&1; then
+	if flatpak install -y --noninteractive flathub "$pkg" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Success${RESET}\n"
 		return 0
 	else
@@ -108,22 +108,40 @@ read_gaming_yaml_packages() {
 # ===== Interactive Steam Installation for CachyOS =====
 install_steam_interactive() {
 	ui_info "Installing Steam with interactive CachyOS prompts..."
-	
+
 	# Check if Steam is already installed
 	if pacman -Q steam &>/dev/null; then
 		ui_info "Steam is already installed, skipping..."
 		GAMING_INSTALLED+=("steam (already installed)")
 		return 0
 	fi
-	
+
+	# NOTE: this module runs with stdout/stderr redirected to the install
+	# log (dashboard_run). A raw `pacman -S` would print its Vulkan-provider
+	# / mesa-conflict prompts into the log where nobody sees them and then
+	# block forever on stdin — looking exactly like a hang with an empty
+	# log (pacman block-buffers when stdout is not a tty). Attach the
+	# interactive run to the terminal so prompts and progress are visible.
+	if [[ "${AUTO_CONFIRM:-false}" == true ]] || [[ ! -c /dev/tty ]]; then
+		ui_info "Non-interactive context — installing Steam with defaults (no prompts)..."
+		if sudo pacman -S --noconfirm --needed steam >>"$INSTALL_LOG" 2>&1; then
+			GAMING_INSTALLED+=("steam (non-interactive)")
+			ui_success "Steam installed successfully"
+			return 0
+		else
+			ui_error "Steam installation failed"
+			return 1
+		fi
+	fi
+
 	# Interactive Steam installation - let user handle CachyOS prompts
 	ui_info "Starting interactive Steam installation..."
 	ui_info "You will be prompted to select:"
 	ui_info "  1. Vulkan driver (choose mesa-git for best gaming performance)"
 	ui_info "  2. Package conflicts (confirm mesa removal if prompted)"
-	
-	# Run Steam installation interactively
-	if sudo pacman -S steam; then
+
+	# Run Steam installation attached to the terminal
+	if sudo pacman -S steam </dev/tty >/dev/tty 2>/dev/tty; then
 		GAMING_INSTALLED+=("steam (interactive)")
 		ui_success "Steam installed successfully"
 		return 0
@@ -157,30 +175,35 @@ install_pacman_packages() {
 		return
 	fi
 	
-	# Filter out Steam if it was already installed during mesa-git process
+	# Filter out Steam if it was already installed during mesa-git process,
+	# plus anything else already on the system to shrink the batch.
 	local filtered_packages=()
 	local steam_already_installed=false
-	
+
 	# Check if Steam was already installed
 	for pkg in "${pacman_gaming_programs[@]}"; do
 		if [[ "$pkg" == "steam" ]] && pacman -Q "$pkg" &>/dev/null; then
 			steam_already_installed=true
 			ui_info "Steam already installed during mesa-git process, skipping..."
+		elif pacman -Q "$pkg" &>/dev/null; then
+			ui_info "$pkg already installed, skipping..."
 		else
 			filtered_packages+=("$pkg")
 		fi
 	done
-	
+
 	if [[ ${#filtered_packages[@]} -eq 0 ]]; then
 		ui_info "All pacman packages already installed."
 		return
 	fi
-	
+
 	ui_info "Installing ${#filtered_packages[@]} pacman packages for gaming..."
 
-	# Try batch install first for speed
+	# Log to INSTALL_LOG (not /dev/null): these are large downloads and the
+	# dashboard hides step output, so `tail -f` on the log is the only
+	# progress signal. Swallowing output looks like a hang.
 	printf "${CYAN}Attempting batch installation...${RESET}\n"
-	if sudo pacman -S --noconfirm --needed "${filtered_packages[@]}" >/dev/null 2>&1; then
+	if sudo pacman -S --noconfirm --needed "${filtered_packages[@]}" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
 		for pkg in "${filtered_packages[@]}"; do
 			GAMING_INSTALLED+=("$pkg")
@@ -201,7 +224,7 @@ install_aur_packages() {
 
 	# Try batch install first
 	printf "${CYAN}Attempting batch installation...${RESET}\n"
-	if paru -S --noconfirm --needed "${aur_gaming_programs[@]}" >/dev/null 2>&1; then
+	if paru -S --noconfirm --needed "${aur_gaming_programs[@]}" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
 		for pkg in "${aur_gaming_programs[@]}"; do
 			GAMING_INSTALLED+=("$pkg (AUR)")
@@ -215,11 +238,11 @@ install_aur_packages() {
 	done
 }
 
-install_flatpak_packages() {
+	install_flatpak_packages() {
 	if ! command -v flatpak >/dev/null; then ui_warn "flatpak is not installed. Skipping gaming Flatpaks."; return; fi
-	if ! flatpak remote-list | grep -q flathub; then
+	if ! flatpak remote-list 2>/dev/null | grep -q flathub; then
 		step "Adding Flathub remote"
-		flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+		flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >>"$INSTALL_LOG" 2>&1
 	fi
 	if [[ ${#flatpak_gaming_programs[@]} -eq 0 ]]; then
 		ui_info "No Flatpak applications for gaming mode to install."
@@ -227,9 +250,10 @@ install_flatpak_packages() {
 	fi
 	ui_info "Installing ${#flatpak_gaming_programs[@]} Flatpak applications for gaming..."
 
-	# Try batch install first
+	# Try batch install first (logged: Flatpak runtimes are GB-sized,
+	# silent downloads look like a hang)
 	printf "${CYAN}Attempting batch installation...${RESET}\n"
-	if flatpak install -y --noninteractive flathub "${flatpak_gaming_programs[@]}" >/dev/null 2>&1; then
+	if flatpak install -y --noninteractive flathub "${flatpak_gaming_programs[@]}" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
 		for pkg in "${flatpak_gaming_programs[@]}"; do
 			GAMING_INSTALLED+=("$pkg (Flatpak)")

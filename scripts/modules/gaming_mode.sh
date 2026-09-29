@@ -105,9 +105,13 @@ read_gaming_yaml_packages() {
 	return 0
 }
 
-# ===== Interactive Steam Installation for CachyOS =====
-install_steam_interactive() {
-	ui_info "Installing Steam with interactive CachyOS prompts..."
+# ===== Steam Installation for CachyOS =====
+# Non-interactive by design: this module runs with stdout/stderr redirected
+# to the install log (dashboard_run), so every message stays hidden behind
+# the dashboard and only the log shows progress. Nothing here may touch
+# /dev/tty except the sanctioned gum_confirm prompt in main().
+install_steam() {
+	ui_info "Installing Steam..."
 
 	# Check if Steam is already installed
 	if pacman -Q steam &>/dev/null; then
@@ -116,33 +120,12 @@ install_steam_interactive() {
 		return 0
 	fi
 
-	# NOTE: this module runs with stdout/stderr redirected to the install
-	# log (dashboard_run). A raw `pacman -S` would print its Vulkan-provider
-	# / mesa-conflict prompts into the log where nobody sees them and then
-	# block forever on stdin — looking exactly like a hang with an empty
-	# log (pacman block-buffers when stdout is not a tty). Attach the
-	# interactive run to the terminal so prompts and progress are visible.
-	if [[ "${AUTO_CONFIRM:-false}" == true ]] || [[ ! -c /dev/tty ]]; then
-		ui_info "Non-interactive context — installing Steam with defaults (no prompts)..."
-		if sudo pacman -S --noconfirm --needed steam >>"$INSTALL_LOG" 2>&1; then
-			GAMING_INSTALLED+=("steam (non-interactive)")
-			ui_success "Steam installed successfully"
-			return 0
-		else
-			ui_error "Steam installation failed"
-			return 1
-		fi
-	fi
-
-	# Interactive Steam installation - let user handle CachyOS prompts
-	ui_info "Starting interactive Steam installation..."
-	ui_info "You will be prompted to select:"
-	ui_info "  1. Vulkan driver (choose mesa-git for best gaming performance)"
-	ui_info "  2. Package conflicts (confirm mesa removal if prompted)"
-
-	# Run Steam installation attached to the terminal
-	if sudo pacman -S steam </dev/tty >/dev/tty 2>/dev/tty; then
-		GAMING_INSTALLED+=("steam (interactive)")
+	# CachyOS already sets up the GPU/Vulkan stack, so the driver provider
+	# is normally satisfied with no prompt. --noconfirm resolves any
+	# remaining choice with the default instead of blocking forever on
+	# unseen stdin (which looked like a hang with an empty log).
+	if sudo pacman -S --noconfirm --needed steam >>"$INSTALL_LOG" 2>&1; then
+		GAMING_INSTALLED+=("steam")
 		ui_success "Steam installed successfully"
 		return 0
 	else
@@ -323,8 +306,8 @@ main() {
 		return 1
 	fi
 
-	# Install Steam with interactive prompts for CachyOS
-	install_steam_interactive
+	# Install Steam (non-interactive, output hidden behind the dashboard)
+	install_steam
 	
 	install_pacman_packages
 	install_aur_packages

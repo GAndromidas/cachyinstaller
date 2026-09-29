@@ -198,7 +198,7 @@ bash tests/syntax.sh
 | `System compatibility check failed` | Confirm you are on CachyOS with internet access and 2GB+ free space; see the log for the exact issue. |
 | A step failed but others passed | Re-run `./install.sh` — completed steps are skipped; only the failed step retries. |
 | `paru` prompts during AUR installs | AUR builds can ask interactive questions; run in a terminal you can watch, or pre-install `paru` yourself. |
-| Steam asks about Vulkan drivers | Choose the recommended driver when prompted — this is the normal interactive Steam setup. |
+| Steam installed without Vulkan choice | Gaming Mode installs Steam non-interactively (provider auto-selected). For `mesa-git` instead of `mesa`, install it manually: `sudo pacman -S mesa-git`. |
 | Wake-on-LAN shows "Skipped" | Expected on VMs, Wi-Fi-only systems, and NICs without magic-packet support. Also enable "Power On by PCI-E" in your BIOS/UEFI. |
 | Need a fresh start | `rm -f /var/tmp/cachyinstaller.state` and run again. |
 

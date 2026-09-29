@@ -61,8 +61,6 @@ pacman:
 # Essential packages for different installation modes
 essential:
   default:
-    - name: filezilla
-      description: "FTP client for file transfers"
     - name: kdenlive
       description: "Video editor for KDE"
     - name: libreoffice-fresh

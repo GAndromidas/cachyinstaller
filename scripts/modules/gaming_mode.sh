@@ -60,14 +60,19 @@ flatpak_install() {
 }
 
 # ===== YAML Parsing Functions =====
-
+# yq gives stricter parsing when present, but the built-in fallback parser
+# handles gaming_mode.yaml — so a missing yq is never fatal.
 ensure_yq() {
-	if ! command -v yq &>/dev/null; then
-		ui_info "yq is required for YAML parsing. Installing..."
+	if command -v yq &>/dev/null; then
+		return 0
+	fi
+	ui_info "Trying to install 'yq' for stricter YAML parsing (optional, fallback available)..."
+	if [[ "${DRY_RUN:-false}" == false ]]; then
 		if ! pacman_install "yq"; then
-			log_error "Failed to install yq. Please install it manually: sudo pacman -S yq"
-			return 1
+			log_warning "Could not install yq — continuing with built-in parser."
 		fi
+	else
+		ui_info "[DRY-RUN] Would try to install 'yq' (optional)."
 	fi
 	return 0
 }
@@ -78,15 +83,26 @@ read_gaming_yaml_packages() {
 	local -n packages_array="$3"
 
 	packages_array=()
-	local yq_output
-	yq_output=$(yq -r "$yaml_path[].name" "$yaml_file" 2>/dev/null)
+	if command -v yq &>/dev/null; then
+		local yq_output
+		yq_output=$(yq -r "$yaml_path[].name" "$yaml_file" 2>/dev/null || true)
 
-	if [[ $? -eq 0 && -n "$yq_output" ]]; then
-		while IFS= read -r name; do
-			[[ -z "$name" ]] && continue
-			packages_array+=("$name")
-		done <<<"$yq_output"
+		if [[ -n "$yq_output" ]]; then
+			while IFS= read -r name; do
+				[[ -z "$name" ]] && continue
+				packages_array+=("$name")
+			done <<<"$yq_output"
+		fi
+		return 0
 	fi
+	if declare -f _yaml_fallback_packages_with_desc >/dev/null 2>&1; then
+		local _fp=() _fd=()
+		_yaml_fallback_packages_with_desc "$yaml_file" "$yaml_path" _fp _fd
+		packages_array=("${_fp[@]}")
+		return 0
+	fi
+	log_warning "yq not found and no fallback parser — list $yaml_path will be empty"
+	return 0
 }
 
 # ===== Interactive Steam Installation for CachyOS =====
@@ -125,7 +141,7 @@ load_package_lists() {
 	fi
 
 	if ! ensure_yq; then
-		return 1
+		log_warning "yq setup had issues — continuing with built-in parser."
 	fi
 
 	read_gaming_yaml_packages "$GAMING_YAML" ".pacman.packages" pacman_gaming_programs

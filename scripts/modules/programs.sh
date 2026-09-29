@@ -5,27 +5,42 @@ set -uo pipefail
 CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../configs" && pwd)"
 PROGRAMS_YAML="$CONFIGS_DIR/programs.yaml"
 
-# This script depends on 'yq' for parsing the YAML file.
-# This function ensures it's installed before proceeding.
+# This script parses package lists from YAML. `yq` gives stricter parsing
+# when present, but the built-in fallback parser handles everything here —
+# so a missing/failed yq install is never fatal.
 ensure_yq() {
-  if ! command_exists yq; then
-    ui_info "YAML processor 'yq' is not installed. Installing it now..."
-    install_packages_quietly go-yq || {
-      log_error "Failed to install 'go-yq'. This is a critical dependency for package management."
-      return 1
-    }
+  if command_exists yq; then
+    return 0
+  fi
+  ui_info "Trying to install 'yq' for stricter YAML parsing (optional, fallback available)..."
+  if [ "${DRY_RUN:-false}" = false ]; then
+    install_packages_quietly yq >>"$INSTALL_LOG" 2>&1 || \
+      log_warning "Could not install 'yq' — continuing with built-in parser."
+  else
+    ui_info "[DRY-RUN] Would try to install 'yq' (optional)."
   fi
   return 0
 }
 
 # --- YAML Parsing Helper ---
-# Reads a simple list of packages from a given path in the YAML file.
-# Reads a list of packages from a given path in the YAML file.
-# It correctly handles simple lists of strings and lists of objects with a 'name' key.
+# Handles both shapes used in programs.yaml:
+#   - lists of objects with a 'name' key  -> uses .name
+#   - bare string lists (DE install/remove) -> uses the item itself
+# Uses yq when available, otherwise the built-in fallback parser.
 read_yaml_list() {
   local yaml_path="$1"
-  # For each item in the array, get its '.name' property. If it's null (e.g., a simple string), return the item itself.
-  yq -r "${yaml_path}[] | .name // ." "$PROGRAMS_YAML" 2>/dev/null || echo ""
+  if command_exists yq; then
+    yq -r "${yaml_path}[] | .name // ." "$PROGRAMS_YAML" 2>/dev/null || true
+    return 0
+  fi
+  if declare -f _yaml_fallback_packages_with_desc >/dev/null 2>&1; then
+    local _fp=() _fd=()
+    _yaml_fallback_packages_with_desc "$PROGRAMS_YAML" "$yaml_path" _fp _fd
+    printf '%s\n' "${_fp[@]}"
+    return 0
+  fi
+  log_warning "yq not found and no fallback parser — list $yaml_path will be empty"
+  return 0
 }
 
 # --- Package Manager Helpers ---
@@ -69,12 +84,12 @@ fi
 
 # --- Main Logic ---
 
-# 1. Verify YAML file and 'yq' dependency
+# 1. Verify YAML file and try to ensure 'yq' (optional, never fatal)
 if [[ ! -f "$PROGRAMS_YAML" ]]; then
   log_error "Programs configuration file not found: $PROGRAMS_YAML"
   return 1
 fi
-ensure_yq || return 1
+ensure_yq || true
 
 # 2. Load all package lists
 ui_info "Loading package lists for '$INSTALL_MODE' mode..."
@@ -93,16 +108,29 @@ mapfile -t de_install_pkgs < <(read_yaml_list ".desktop_environments.${de_lower}
 mapfile -t de_remove_pkgs < <(read_yaml_list ".desktop_environments.${de_lower}.remove")
 mapfile -t flatpak_pkgs < <(read_yaml_list ".flatpak.${de_lower}.${INSTALL_MODE:-default}")
 
-# 3. Consolidate Pacman packages
+# 3. Consolidate Pacman packages (dedupe, drop empties)
+dedupe_list() {
+  # $1 = nameref of array to dedupe in place
+  local -n _dl="$1"
+  local _seen=() _out=() _item _s
+  for _item in "${_dl[@]}"; do
+    _item=$(echo "$_item" | xargs)
+    [[ -z "$_item" ]] && continue
+    _s=" ${_seen[*]} "
+    [[ "$_s" == *" $_item "* ]] && continue
+    _seen+=("$_item")
+    _out+=("$_item")
+  done
+  _dl=("${_out[@]}")
+}
 pacman_pkgs_to_install=(
   "${pacman_base_pkgs[@]}"
   "${essential_pkgs[@]}"
   "${de_install_pkgs[@]}"
 )
-# Filter out empty/duplicate elements
-pacman_pkgs_to_install=($(echo "${pacman_pkgs_to_install[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
-aur_pkgs=($(echo "${aur_pkgs[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
-flatpak_pkgs=($(echo "${flatpak_pkgs[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+dedupe_list pacman_pkgs_to_install
+dedupe_list aur_pkgs
+dedupe_list flatpak_pkgs
 
 # 4. Display a summary of what will be installed
 print_header "Package Installation Summary"
@@ -115,113 +143,125 @@ if [ ${#pacman_pkgs_to_install[@]} -eq 0 ] && [ ${#aur_pkgs[@]} -eq 0 ] && [ ${#
   return 0
 fi
 
-if supports_gum; then
-  gum spin --spinner dot --title "Preparing for installation..." -- sleep 3
-fi
-
 # 5. Remove conflicting packages first
 remove_pacman_packages "${de_remove_pkgs[@]}"
 
-# Enhanced Pacman package installation with batch and fallback
+# Batch install with individual fallback. Single-item helpers already record
+# into INSTALLED_PACKAGES / FAILED_PACKAGES, so fallback loops must not
+# re-append (avoids double counting).
 install_pacman_packages() {
   if [[ ${#pacman_pkgs_to_install[@]} -eq 0 ]]; then
     ui_info "No pacman packages to install."
     return
   fi
-  ui_info "Installing ${#pacman_pkgs_to_install[@]} pacman packages..."
+  # Skip already-installed to shrink the batch
+  local _to_install=() _p
+  for _p in "${pacman_pkgs_to_install[@]}"; do
+    pacman -Q "$_p" &>/dev/null || _to_install+=("$_p")
+  done
+  if [[ ${#_to_install[@]} -eq 0 ]]; then
+    ui_info "All ${#pacman_pkgs_to_install[@]} pacman packages already installed."
+    return
+  fi
+  ui_info "Installing ${#_to_install[@]}/${#pacman_pkgs_to_install[@]} pacman packages..."
 
-  # Try batch install first for speed
+  if [ "${DRY_RUN:-false}" = true ]; then
+    ui_info "Dry-run: would install these packages via Pacman:"
+    printf '  %s\n' "${_to_install[@]}"
+    return
+  fi
+
   printf "${CYAN}Attempting batch installation...${RESET}\n"
-  if sudo pacman -S --noconfirm --needed "${pacman_pkgs_to_install[@]}" >/dev/null 2>&1; then
+  if sudo pacman -S --noconfirm --needed "${_to_install[@]}" >>"$INSTALL_LOG" 2>&1; then
     printf "${GREEN} ✓ Batch installation successful${RESET}\n"
-    for pkg in "${pacman_pkgs_to_install[@]}"; do
-      INSTALLED_PACKAGES+=("$pkg")
-    done
+    INSTALLED_PACKAGES+=("${_to_install[@]}")
     return
   fi
 
   printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
-  for pkg in "${pacman_pkgs_to_install[@]}"; do
-    if pacman_install_single "$pkg" true; then 
-      INSTALLED_PACKAGES+=("$pkg"); 
-    else 
-      FAILED_PACKAGES+=("$pkg (pacman)"); 
-    fi
+  for _p in "${_to_install[@]}"; do
+    pacman_install_single "$_p" true || true
   done
 }
 
-# Enhanced AUR package installation with batch and fallback
+# AUR installation with batch and fallback
 install_aur_packages_enhanced() {
-  if ! command -v paru >/dev/null; then 
-    ui_warn "paru is not installed. Skipping AUR packages."; 
-    return; 
+  if ! command -v paru >/dev/null; then
+    ui_warn "paru is not installed. Skipping AUR packages."
+    return
   fi
-  if [[ ${#aur_pkgs[@]} -eq 0 ]]; then 
-    ui_info "No AUR packages to install."; 
-    return; 
+  if [[ ${#aur_pkgs[@]} -eq 0 ]]; then
+    ui_info "No AUR packages to install."
+    return
   fi
   ui_info "Installing ${#aur_pkgs[@]} AUR packages with paru..."
 
-  # Try batch install first
+  if [ "${DRY_RUN:-false}" = true ]; then
+    ui_info "Dry-run: would install these AUR packages with paru:"
+    printf '  %s\n' "${aur_pkgs[@]}"
+    return
+  fi
+
   printf "${CYAN}Attempting batch installation...${RESET}\n"
-  if paru -S --noconfirm --needed "${aur_pkgs[@]}" >/dev/null 2>&1; then
+  if paru -S --noconfirm --needed "${aur_pkgs[@]}" >>"$INSTALL_LOG" 2>&1; then
     printf "${GREEN} ✓ Batch installation successful${RESET}\n"
-    for pkg in "${aur_pkgs[@]}"; do
-      INSTALLED_PACKAGES+=("$pkg (AUR)")
+    for _p in "${aur_pkgs[@]}"; do
+      INSTALLED_PACKAGES+=("$_p (AUR)")
     done
     return
   fi
 
   printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
-  for pkg in "${aur_pkgs[@]}"; do
-    if paru_install_single "$pkg" true; then 
-      INSTALLED_PACKAGES+=("$pkg (AUR)"); 
-    else 
-      FAILED_PACKAGES+=("$pkg (AUR)"); 
-    fi
+  for _p in "${aur_pkgs[@]}"; do
+    paru_install_single "$_p" true || true
   done
 }
 
-# Enhanced Flatpak package installation with batch and fallback
-install_flatpak_packages_enhanced() {
-  if ! command -v flatpak >/dev/null; then 
-    ui_warn "flatpak is not installed. Skipping Flatpak packages."; 
-    return; 
-  fi
-  if ! flatpak remote-list | grep -q flathub; then
-    step "Adding Flathub remote"
-    flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-  fi
-  if [[ ${#flatpak_pkgs[@]} -eq 0 ]]; then 
-    ui_info "No Flatpak applications to install."; 
-    return; 
-  fi
-  ui_info "Installing ${#flatpak_pkgs[@]} Flatpak applications..."
-
-  # Try batch install first
-  printf "${CYAN}Attempting batch installation...${RESET}\n"
-  if sudo flatpak install --noninteractive -y "${flatpak_pkgs[@]}" >/dev/null 2>&1; then
-    printf "${GREEN} ✓ Batch installation successful${RESET}\n"
-    for pkg in "${flatpak_pkgs[@]}"; do
-      INSTALLED_PACKAGES+=("$pkg (Flatpak)")
-    done
+# Flatpak runs in parallel with pacman+AUR (no shared lock), so the caller
+# starts it in the background. This helper is the synchronous fallback path.
+install_flatpak_packages_sync() {
+  if ! command -v flatpak >/dev/null; then
+    ui_warn "flatpak is not installed. Skipping Flatpak packages."
     return
   fi
-
-  printf "${YELLOW} ! Batch installation failed. Falling back to individual installation...${RESET}\n"
-  for pkg in "${flatpak_pkgs[@]}"; do
-    if flatpak_install_single "$pkg" true; then 
-      INSTALLED_PACKAGES+=("$pkg (Flatpak)"); 
-    else 
-      FAILED_PACKAGES+=("$pkg (Flatpak)"); 
-    fi
-  done
+  if [[ ${#flatpak_pkgs[@]} -eq 0 ]]; then
+    ui_info "No Flatpak applications to install."
+    return
+  fi
+  if [ "${DRY_RUN:-false}" = true ]; then
+    ui_info "Dry-run: would install these Flatpak applications:"
+    printf '  %s\n' "${flatpak_pkgs[@]}"
+    return
+  fi
+  if declare -f flatpak_install_batch >/dev/null 2>&1; then
+    flatpak_install_batch "${flatpak_pkgs[@]}" || true
+  else
+    for _p in "${flatpak_pkgs[@]}"; do
+      flatpak_install_single "$_p" true || true
+    done
+  fi
 }
 
-# 6. Install Pacman packages with enhanced batch/fallback
+# 6-8. Install: Flatpak shares no lock with pacman/paru, so it runs in
+# parallel in the background while pacman+AUR install. The background job
+# can't touch parent arrays — its exit code travels via a file. All output
+# stays in the install log.
+_flatpak_rc_file=""
+_flatpak_pid=""
+if command -v flatpak &>/dev/null && [[ ${#flatpak_pkgs[@]} -gt 0 ]]; then
+  if [ "${DRY_RUN:-false}" = true ]; then
+    ui_info "Dry-run: would install ${#flatpak_pkgs[@]} Flatpak applications in parallel."
+  elif declare -f flatpak_install_batch >/dev/null 2>&1; then
+    _flatpak_rc_file=$(mktemp /tmp/cachyinstaller_flatpak.XXXXXX)
+    ( flatpak_install_batch "${flatpak_pkgs[@]}" >>"$INSTALL_LOG" 2>&1; echo "$?" > "$_flatpak_rc_file" ) &
+    _flatpak_pid=$!
+  fi
+fi
+
+# 6. Install Pacman packages with batch/fallback
 install_pacman_packages
 
-# 7. Install AUR packages with enhanced batch/fallback
+# 7. Install AUR packages with batch/fallback
 if [ ${#aur_pkgs[@]} -gt 0 ]; then
   if command_exists paru; then
     install_aur_packages_enhanced
@@ -230,23 +270,38 @@ if [ ${#aur_pkgs[@]} -gt 0 ]; then
   fi
 fi
 
-# 8. Install Flatpak packages with enhanced batch/fallback
-if [ ${#flatpak_pkgs[@]} -gt 0 ]; then
+# 8. Flatpak: join background job, or fall back to synchronous install
+if [[ -n "$_flatpak_pid" ]]; then
+  wait "$_flatpak_pid"
+  _flatpak_rc=1
+  _flatpak_rc=$(cat "$_flatpak_rc_file" 2>/dev/null || echo 1)
+  rm -f "$_flatpak_rc_file"
+  if [[ "$_flatpak_rc" -eq 0 ]]; then
+    INSTALLED_PACKAGES+=("${flatpak_pkgs[@]}")
+  else
+    FAILED_PACKAGES+=("flatpak batch (see log for per-app results)")
+  fi
+elif [ ${#flatpak_pkgs[@]} -gt 0 ]; then
+  if ! command -v flatpak &>/dev/null; then
     ui_info "Setting up Flatpak..."
-    if ! command_exists flatpak; then
-        ui_info "Installing Flatpak..."
-        install_packages_quietly flatpak || { log_error "Failed to install Flatpak. Skipping Flatpak packages."; return 0; }
-    fi
-
+    install_packages_quietly flatpak || { log_error "Failed to install Flatpak. Skipping Flatpak packages."; return 0; }
     if [ "${DRY_RUN:-false}" = false ]; then
-        if ! flatpak remote-list | grep -q flathub; then
-            flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >> "$INSTALL_LOG" 2>&1
-            ui_info "Flathub remote added."
-        fi
-    else
-        ui_info "[DRY_RUN] Would ensure Flathub remote exists."
+      if ! flatpak remote-list 2>/dev/null | grep -q flathub; then
+        flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >> "$INSTALL_LOG" 2>&1
+        ui_info "Flathub remote added."
+      fi
     fi
-    install_flatpak_packages_enhanced
+  fi
+  install_flatpak_packages_sync
+fi
+
+# Final roll-up so a partial failure is never silently invisible.
+echo ""
+if [[ ${#FAILED_PACKAGES[@]} -gt 0 ]]; then
+  ui_warn "Programs installation completed with ${#FAILED_PACKAGES[@]} failure(s): ${FAILED_PACKAGES[*]}"
+  ui_info "Everything else installed successfully (${#INSTALLED_PACKAGES[@]} package(s)). Check $INSTALL_LOG for details."
+else
+  ui_success "Programs installation complete — ${#INSTALLED_PACKAGES[@]} package(s) installed, 0 failures."
 fi
 
 return 0

@@ -132,15 +132,23 @@ stop_sudo_keepalive() {
   fi
 }
 
-# Install gum only when we are actually going to modify the system.
+# Install helpers only when we are actually going to modify the system.
 # Dry-run is guaranteed not to install helpers or alter the machine.
-if [[ "$DRY_RUN" != true ]] && ! command -v gum >/dev/null 2>&1; then
-  log_to_file "Installing gum for enhanced UI experience..."
-  if sudo pacman -S --noconfirm --needed gum >>"$INSTALL_LOG" 2>&1; then
-    log_to_file "Gum installed successfully"
-  else
-    log_to_file "Failed to install gum, falling back to basic UI"
-  fi
+# gum (UI) + yq (strict YAML parsing) are present before any menu/prompt.
+# Best-effort and silent: failures fall back to basic UI / built-in parser.
+if [[ "$DRY_RUN" != true ]]; then
+  for __bootstrap_pkg in gum yq; do
+    command -v "$__bootstrap_pkg" >/dev/null 2>&1 && continue
+    log_to_file "Installing $__bootstrap_pkg..."
+    if sudo pacman -S --noconfirm --needed "$__bootstrap_pkg" >>"$INSTALL_LOG" 2>&1; then
+      log_to_file "$__bootstrap_pkg installed successfully"
+    elif sudo pacman -Sy --noconfirm --needed "$__bootstrap_pkg" >>"$INSTALL_LOG" 2>&1; then
+      log_to_file "$__bootstrap_pkg installed successfully (after DB sync)"
+    else
+      log_to_file "Failed to install $__bootstrap_pkg, continuing without it"
+    fi
+  done
+  unset __bootstrap_pkg
 fi
 
 # Authenticate once up front so keep-alive can run non-interactively after.

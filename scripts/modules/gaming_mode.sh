@@ -268,7 +268,7 @@ main() {
 	step "Gaming Mode Setup"
 	ui_header "Gaming Mode"
 
-	local description="This includes popular tools like Steam, Wine, GameMode, MangoHud, Heroic Games Launcher, Faugus Launcher and more."
+	local description="This includes popular tools like Steam, Wine, MangoHud, Heroic Games Launcher, Faugus Launcher and more."
 	if ! gum_confirm "Enable Gaming Mode?" "$description"; then
 		ui_info "Gaming Mode skipped."
 		return 2

@@ -2,11 +2,12 @@
 set -uo pipefail
 
 # Fish shell enhancement for CachyOS (Fish behavior unchanged).
+# CachyOS-only policy: additive only — never overwrite an existing config.
 # DRY-RUN guard: every mutating section below checks DRY_RUN and only
 # prints a preview when set — a preview run never writes files, installs
 # plugins, or changes the login shell.
-# Idempotency: config files are only installed when missing or different
-# (cmp check), /etc/shells is appended only when absent, plugins install
+# Idempotency: config files are only installed when missing,
+# /etc/shells is appended only when absent, plugins install
 # through fisher (already-installed plugins are no-ops).
 
 # --- Sanity Checks ---
@@ -30,62 +31,61 @@ mkdir -p "$FASTFETCH_CONFIG_DIR"
 
 
 # --- Install Fish & Starship Configuration ---
+# CachyOS-only policy: additive only. CachyOS already ships a tuned fish +
+# starship setup. Only place a default when the user has none. Never overwrite
+# an existing config.
 ui_info "Applying Fish and Starship configurations..."
 if [ "${DRY_RUN:-false}" = false ]; then
-  # Determine which config source to use (priority: cachyos-fish-config > user-fish-config > default)
-  if [ -d "$CONFIGS_DIR/cachyos-fish-config" ]; then
-    FISH_SOURCE="$CONFIGS_DIR/cachyos-fish-config"
+  # Resolve source files (cachyos-fish-config uses a different filename).
+  FISH_SRC_FILE=""
+  STARSHIP_SRC_FILE=""
+  if [ -f "$CONFIGS_DIR/user-fish-config/config.fish" ]; then
+    # Preferred: tiny shim that sources the system cachyos-config.fish.
+    FISH_SRC_FILE="$CONFIGS_DIR/user-fish-config/config.fish"
+    ui_info "  - Using user fish shim (sources system CachyOS config)."
+  elif [ -f "$CONFIGS_DIR/cachyos-fish-config/cachyos-config.fish" ]; then
+    FISH_SRC_FILE="$CONFIGS_DIR/cachyos-fish-config/cachyos-config.fish"
     ui_info "  - Using CachyOS custom fish config."
-  elif [ -d "$CONFIGS_DIR/user-fish-config" ]; then
-    FISH_SOURCE="$CONFIGS_DIR/user-fish-config"
-    ui_info "  - Using user-defined fish config."
-  else
-    FISH_SOURCE="$CONFIGS_DIR/fish"
+  elif [ -f "$CONFIGS_DIR/fish/config.fish" ]; then
+    FISH_SRC_FILE="$CONFIGS_DIR/fish/config.fish"
     ui_info "  - Using default fish config."
   fi
-
-  # Deploy config.fish (idempotent: skip when destination is identical)
-  if [ ! -f "$FISH_CONFIG_DIR/config.fish" ] || [ "$FISH_SOURCE" != "$CONFIGS_DIR/fish" ]; then
-    if [ -f "$FISH_SOURCE/config.fish" ]; then
-      if [ -f "$FISH_CONFIG_DIR/config.fish" ] && cmp -s "$FISH_SOURCE/config.fish" "$FISH_CONFIG_DIR/config.fish"; then
-        ui_info "  - Fish config already up to date, skipping."
-      else
-        cp "$FISH_SOURCE/config.fish" "$FISH_CONFIG_DIR/config.fish"
-        ui_info "  - Fish config installed from $FISH_SOURCE."
-      fi
-    fi
+  if [ -f "$CONFIGS_DIR/user-fish-config/starship.toml" ]; then
+    STARSHIP_SRC_FILE="$CONFIGS_DIR/user-fish-config/starship.toml"
+  elif [ -f "$CONFIGS_DIR/fish/starship.toml" ]; then
+    STARSHIP_SRC_FILE="$CONFIGS_DIR/fish/starship.toml"
   fi
 
-  # Deploy starship.toml (idempotent: skip when destination is identical)
-  if [ ! -f "$FISH_CONFIG_DIR/starship.toml" ] || [ "$FISH_SOURCE" != "$CONFIGS_DIR/fish" ]; then
-    if [ -f "$FISH_SOURCE/starship.toml" ]; then
-      if [ -f "$FISH_CONFIG_DIR/starship.toml" ] && cmp -s "$FISH_SOURCE/starship.toml" "$FISH_CONFIG_DIR/starship.toml"; then
-        ui_info "  - Starship config already up to date, skipping."
-      else
-        cp "$FISH_SOURCE/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
-        ui_info "  - Starship config installed from $FISH_SOURCE."
-      fi
-    elif [ -f "$CONFIGS_DIR/fish/starship.toml" ]; then
-      if [ -f "$FISH_CONFIG_DIR/starship.toml" ] && cmp -s "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"; then
-        ui_info "  - Starship config already up to date, skipping."
-      else
-        cp "$CONFIGS_DIR/fish/starship.toml" "$FISH_CONFIG_DIR/starship.toml"
-        ui_info "  - Default starship config installed."
-      fi
+  # Deploy config.fish only when missing (never overwrite CachyOS/user config).
+  if [ ! -f "$FISH_CONFIG_DIR/config.fish" ]; then
+    if [ -n "$FISH_SRC_FILE" ]; then
+      cp "$FISH_SRC_FILE" "$FISH_CONFIG_DIR/config.fish"
+      ui_info "  - Fish config installed (none existed)."
     fi
+  else
+    ui_info "  - Fish config already exists, leaving untouched."
   fi
 
-  # Deploy conf.d files if they exist in the source (idempotent per file)
-  if [ -d "$FISH_SOURCE/conf.d" ]; then
+  # Deploy starship.toml only when missing.
+  if [ ! -f "$FISH_CONFIG_DIR/starship.toml" ]; then
+    if [ -n "$STARSHIP_SRC_FILE" ]; then
+      cp "$STARSHIP_SRC_FILE" "$FISH_CONFIG_DIR/starship.toml"
+      ui_info "  - Starship config installed (none existed)."
+    fi
+  else
+    ui_info "  - Starship config already exists, leaving untouched."
+  fi
+
+  # Deploy conf.d snippets only when missing (never overwrite).
+  if [ -d "$CONFIGS_DIR/user-fish-config/conf.d" ]; then
     mkdir -p "$FISH_CONFIG_DIR/conf.d"
-    local conf_src=""
-    for conf_src in "$FISH_SOURCE/conf.d"/*; do
+    for conf_src in "$CONFIGS_DIR/user-fish-config/conf.d"/*; do
       [ -e "$conf_src" ] || continue
-      if [ -f "$FISH_CONFIG_DIR/conf.d/$(basename "$conf_src")" ] && cmp -s "$conf_src" "$FISH_CONFIG_DIR/conf.d/$(basename "$conf_src")"; then
-        continue
+      dest_name="$(basename "$conf_src")"
+      if [ ! -f "$FISH_CONFIG_DIR/conf.d/$dest_name" ]; then
+        cp "$conf_src" "$FISH_CONFIG_DIR/conf.d/" 2>/dev/null && \
+          ui_info "  - conf.d file installed: $dest_name"
       fi
-      cp "$conf_src" "$FISH_CONFIG_DIR/conf.d/" 2>/dev/null && \
-        ui_info "  - conf.d file installed: $(basename "$conf_src")"
     done
   fi
 else

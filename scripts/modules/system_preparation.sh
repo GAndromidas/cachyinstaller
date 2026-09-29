@@ -3,84 +3,68 @@ set -uo pipefail
 
 # --- Constants ---
 BACKUP_DIR="$HOME/.config/cachyinstaller/backups"
-SPEED_VERY_SLOW=5
-SPEED_SLOW=10
-SPEED_MEDIUM=50
-SPEED_FAST=100
 
 # --- Initialize Directories ---
 mkdir -p "$BACKUP_DIR"
 
-# --- Function to measure download speed ---
-measure_download_speed() {
-    ui_info "Measuring network speed..." >&2
-    local speed_mbps=0
-    local test_file="https://archlinux.org/packages/core/x86_64/linux/download"
-
-    if command_exists curl; then
-        local speed_bytes
-        speed_bytes=$(curl -L --max-time 10 --output /dev/null --silent --write-out "%{speed_download}" "$test_file" 2>/dev/null || echo "0")
-        speed_mbps=$(( (${speed_bytes%.*} * 8) / 1000000 ))
-    fi
-
-    # Use a conservative default if the measurement fails or is too low
-    if [ "$speed_mbps" -eq 0 ]; then
-        speed_mbps=10 # Fallback to a safe 10 Mbps
-        ui_warn "Could not accurately measure network speed. Using a conservative default of ${speed_mbps}Mbps." >&2
-    else
-        ui_success "Measured network speed: ${speed_mbps}Mbps" >&2
-    fi
-
-    echo "$speed_mbps"
-}
-
 # --- Function to optimize pacman configuration ---
+# CachyOS-only policy: respect CachyOS defaults. CachyOS already ships an
+# optimized pacman.conf (ParallelDownloads, mirrors, repos). Only ensure
+# cosmetic/display options are enabled (Color, ILoveCandy, VerbosePkgLists).
+# Never override ParallelDownloads or touch repos/mirrors here.
 optimize_pacman() {
-    local speed="$1"
     local pacman_conf="/etc/pacman.conf"
-    local parallel_downloads=5
 
-    ui_info "Optimizing pacman configuration..."
-
-    # Determine optimal parallel downloads based on speed
-    if (( speed >= SPEED_FAST )); then
-        parallel_downloads=15
-    elif (( speed >= SPEED_MEDIUM )); then
-        parallel_downloads=10
-    elif (( speed >= SPEED_SLOW )); then
-        parallel_downloads=5
-    else
-        parallel_downloads=3
-    fi
+    ui_info "Ensuring pacman display options (CachyOS defaults kept)..."
 
     # Backup original pacman.conf
     if [ -f "$pacman_conf" ] && [ "${DRY_RUN:-false}" = false ]; then
         sudo cp "$pacman_conf" "${BACKUP_DIR}/pacman.conf.$(date +%Y%m%d_%H%M%S).bak"
     fi
 
-    ui_info "Setting parallel downloads to: $parallel_downloads"
     if [ "${DRY_RUN:-false}" = false ]; then
-        # Enable or set ParallelDownloads
-        if grep -q "^#ParallelDownloads" "$pacman_conf"; then
-            sudo sed -i "s/^#ParallelDownloads.*/ParallelDownloads = $parallel_downloads/" "$pacman_conf"
-        elif ! grep -q "^ParallelDownloads" "$pacman_conf"; then
-            echo "ParallelDownloads = $parallel_downloads" | sudo tee -a "$pacman_conf" >/dev/null
+        if grep -q "^#Color" "$pacman_conf"; then
+            sudo sed -i "s/^#Color/Color/" "$pacman_conf"
         fi
-
-        # Enable other candy
-        for option in "Color" "CheckSpace" "VerbosePkgLists" "ILoveCandy"; do
-            sudo sed -i "s/^#$option/$option/" "$pacman_conf"
-        done
+        if grep -q "^#VerbosePkgLists" "$pacman_conf"; then
+            sudo sed -i "s/^#VerbosePkgLists/VerbosePkgLists/" "$pacman_conf"
+        fi
+        # ILoveCandy: uncomment if commented, add if entirely missing
+        if grep -q "^#ILoveCandy" "$pacman_conf"; then
+            sudo sed -i "s/^#ILoveCandy/ILoveCandy/" "$pacman_conf"
+        elif ! grep -q "^ILoveCandy" "$pacman_conf"; then
+            if grep -q "^Color" "$pacman_conf"; then
+                sudo sed -i "/^Color/a ILoveCandy" "$pacman_conf"
+            else
+                sudo sed -i "/^\[options\]/a ILoveCandy" "$pacman_conf"
+            fi
+        fi
     else
-        ui_info "[DRY-RUN] Would have configured pacman with $parallel_downloads parallel downloads."
+        ui_info "[DRY-RUN] Would ensure Color, ILoveCandy, VerbosePkgLists in $pacman_conf."
     fi
 
-    ui_success "Pacman configuration optimized."
+    ui_success "Pacman display options ensured."
+}
+
+# --- Enable sudo password feedback (asterisks) ---
+# Additive only: drops a visudo-validated snippet, never edits sudoers directly.
+set_sudo_pwfeedback() {
+    # Globs must expand as root (sudo sh -c): /etc/sudoers.d is 750, so a
+    # user-expanded glob never matches and pwfeedback would be appended again
+    # on every run.
+    if ! sudo sh -c 'grep -q "^Defaults.*pwfeedback" /etc/sudoers /etc/sudoers.d/* 2>/dev/null'; then
+        ui_info "Enabling sudo password feedback (pwfeedback)..."
+        if [ "${DRY_RUN:-false}" = false ]; then
+            echo 'Defaults env_reset,pwfeedback' | sudo EDITOR='tee -a' visudo >/dev/null
+        else
+            ui_info "[DRY-RUN] Would enable sudo pwfeedback via visudo."
+        fi
+    else
+        ui_info "sudo pwfeedback already enabled. Skipping."
+    fi
 }
 
 # --- Main Execution ---
-NETWORK_SPEED=$(measure_download_speed)
-
 keyring_pkgs=("archlinux-keyring" "cachyos-keyring")
 print_package_summary "Updating essential keyrings" "${keyring_pkgs[@]}"
 install_packages_quietly "${keyring_pkgs[@]}" || log_error "Failed to update essential keyrings."
@@ -92,6 +76,7 @@ else
     ui_info "[DRY-RUN] Would have run 'sudo pacman -Sy'"
 fi
 
-optimize_pacman "$NETWORK_SPEED"
+optimize_pacman
+set_sudo_pwfeedback
 
 return 0

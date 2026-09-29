@@ -11,8 +11,8 @@ setup_firewall() {
 
   ui_info "Enabling UFW firewall..."
   if [ "${DRY_RUN:-false}" = false ]; then
-    # Reset to defaults to ensure a clean slate, then enable.
-    sudo ufw --force reset >/dev/null 2>&1
+    # CachyOS-only: additive — set sane defaults on top of existing rules,
+    # never `ufw reset` (that would wipe user rules).
     sudo ufw default deny incoming >/dev/null 2>&1
     sudo ufw default allow outgoing >/dev/null 2>&1
     if sudo ufw --force enable >> "$INSTALL_LOG" 2>&1; then

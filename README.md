@@ -101,7 +101,7 @@ CachyInstaller runs through a sequence of 9 steps with a live dashboard, providi
 | 1 | System Preparation | Optimizes `pacman` for your network speed, refreshes keyrings, and syncs package databases. |
 | 2 | Shell Enhancement | Sets up the modern **Fish shell** with the **Starship** prompt, Fisher, and useful plugins. Only places default configs if none exist. |
 | 3 | Program Installation | Installs applications from `programs.yaml` based on your mode (Standard/Minimal) and desktop environment (KDE, GNOME, etc.) via official repos, the AUR (`paru`), and Flatpak. |
-| 4 | Gaming Mode (optional) | Installs the CachyOS gaming stack (Steam, Wine, GameMode, MangoHud, launchers). You are always asked first — declining cleanly skips the step. |
+| 4 | Gaming Mode (optional) | Installs the CachyOS gaming stack (Steam, Wine, MangoHud, launchers). You are always asked first — declining cleanly skips the step. |
 | 5 | Bootloader Verification | **Read-only.** Reports whether GRUB or systemd-boot is in use and confirms its core files are present. Your bootloader is never installed, reconfigured, or overwritten. |
 | 6 | Security Hardening | Installs, configures, and enables the **UFW firewall** and **Fail2ban** (SSH brute-force protection). |
 | 7 | System Services | Enables useful systemd services (`fstrim.timer` for SSDs, time sync, Bluetooth/SSH where hardware applies) and desktop tweaks (e.g. KDE global shortcuts). |

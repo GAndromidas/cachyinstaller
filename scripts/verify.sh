@@ -198,10 +198,9 @@ else
   warn "No AUR helper found (paru/yay)"
 fi
 
-if pacman -Q steam &>/dev/null || pacman -Q gamemode &>/dev/null; then
+if pacman -Q steam &>/dev/null; then
   section "Gaming"
-  if command -v gamemoded &>/dev/null; then ok "GameMode installed"; else warn "gamemode package present but gamemoded not found"; fi
-  pacman -Q steam &>/dev/null && ok "Steam installed"
+  ok "Steam installed"
 fi
 
 echo ""

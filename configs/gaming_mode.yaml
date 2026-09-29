@@ -6,10 +6,6 @@ pacman:
       description: "Digital distribution platform for games"
     - name: steam-devices
       description: "Device support for Steam controller and VR"
-    - name: gamemode
-      description: "GameMode daemon for performance optimization"
-    - name: lib32-gamemode
-      description: "32-bit GameMode libraries"
     - name: goverlay
       description: "Gaming overlay for performance monitoring"
     - name: mangohud

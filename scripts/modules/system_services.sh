@@ -31,11 +31,14 @@ setup_essential_services() {
   declare -A services
   services=(
     ["fstrim.timer"]="SSD trimming for performance"
+    ["paccache.timer"]="Pacman cache pruning (if installed)"
     ["systemd-timesyncd.service"]="Network time synchronization"
     ["sshd.service"]="SSH server (if installed)"
     ["bluetooth.service"]="Bluetooth support (if hardware exists)"
     ["cronie.service"]="Cron job scheduler (if installed)"
     ["tlp.service"]="Power management for laptops (if installed and applicable)"
+    ["ananicy-cpp.service"]="Automatic process prioritization (if installed)"
+    ["rustdesk.service"]="RustDesk remote desktop daemon (if installed)"
   )
 
   for service in "${!services[@]}"; do
@@ -58,6 +61,15 @@ setup_essential_services() {
         ;;
       "cronie.service")
         pacman -Q cronie &>/dev/null && should_enable=true
+        ;;
+      "paccache.timer")
+        (command_exists paccache || pacman -Q pacman-contrib &>/dev/null) && should_enable=true
+        ;;
+      "ananicy-cpp.service")
+        pacman -Q ananicy-cpp &>/dev/null && should_enable=true
+        ;;
+      "rustdesk.service")
+        (pacman -Q rustdesk-bin &>/dev/null || pacman -Q rustdesk &>/dev/null) && should_enable=true
         ;;
       *)
         should_enable=true # For fstrim, timesync

@@ -61,12 +61,12 @@ pacman:
 # Essential packages for different installation modes
 essential:
   default:
-    - name: kdenlive
-      description: "Video editor for KDE"
+    - name: gnome-boxes
+      description: "Virtualization GUI using QEMU/KVM"
+    - name: spice-vdagent
+      description: "SPICE guest agent (clipboard sharing when this machine is itself a VM guest)"
     - name: libreoffice-fresh
       description: "Full-featured office suite"
-    - name: solaar
-      description: "Logitech device manager"
 
   minimal:
     - name: mpv
@@ -81,8 +81,6 @@ aur:
       description: "Remote desktop software"
     - name: ventoy-bin
       description: "Bootable USB creation tool"
-    - name: via-bin
-      description: "Keyboard configuration utility"
 
   minimal:
     - name: rustdesk-bin
@@ -94,6 +92,7 @@ desktop_environments:
     install:
       - gwenview
       - kdeconnect
+      - kdenlive
       - kwalletmanager
       - kvantum
       - okular

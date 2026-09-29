@@ -184,26 +184,54 @@ install_pacman_packages() {
   done
 }
 
-# AUR installation with batch and fallback
-install_aur_packages_enhanced() {
-  if ! command -v paru >/dev/null; then
-    ui_warn "paru is not installed. Skipping AUR packages."
-    return
+# Ensure an AUR helper exists before attempting AUR installs. CachyOS ships
+# paru by default, but minimal profiles may lack it — without this, every
+# AUR package (rustdesk, dropbox, ventoy) is silently skipped with only a
+# warning in the log.
+ensure_aur_helper() {
+  if command_exists paru || command_exists yay; then
+    return 0
   fi
+  ui_info "No AUR helper found — installing 'paru' (required for AUR packages)..."
+  if [ "${DRY_RUN:-false}" = false ]; then
+    if install_packages_quietly paru; then
+      ui_success "paru installed."
+      return 0
+    fi
+    log_error "Failed to install paru — AUR packages will be skipped."
+    return 1
+  else
+    ui_info "[DRY-RUN] Would install 'paru'."
+  fi
+  return 0
+}
+
+# AUR installation with batch and fallback (paru first, yay fallback)
+install_aur_packages_enhanced() {
   if [[ ${#aur_pkgs[@]} -eq 0 ]]; then
     ui_info "No AUR packages to install."
     return
   fi
-  ui_info "Installing ${#aur_pkgs[@]} AUR packages with paru..."
+  local _helper=""
+  if declare -f aur_helper >/dev/null 2>&1; then
+    _helper=$(aur_helper)
+  else
+    _helper="paru"
+  fi
+  if ! command -v "$_helper" >/dev/null; then
+    ui_warn "AUR helper '$_helper' is not installed. Skipping AUR packages."
+    return
+  fi
+  ui_info "Installing ${#aur_pkgs[@]} AUR packages with $_helper..."
 
   if [ "${DRY_RUN:-false}" = true ]; then
-    ui_info "Dry-run: would install these AUR packages with paru:"
+    ui_info "Dry-run: would install these AUR packages with $_helper:"
     printf '  %s\n' "${aur_pkgs[@]}"
     return
   fi
 
   printf "${CYAN}Attempting batch installation...${RESET}\n"
-  if paru -S --noconfirm --needed "${aur_pkgs[@]}" >>"$INSTALL_LOG" 2>&1; then
+  if "$_helper" -S --noconfirm --needed "${aur_pkgs[@]}" >>"$INSTALL_LOG" 2>&1; then
     printf "${GREEN} ✓ Batch installation successful${RESET}\n"
     for _p in "${aur_pkgs[@]}"; do
       INSTALLED_PACKAGES+=("$_p (AUR)")
@@ -261,12 +289,12 @@ fi
 # 6. Install Pacman packages with batch/fallback
 install_pacman_packages
 
-# 7. Install AUR packages with batch/fallback
+# 7. Install AUR packages with batch/fallback (helper ensured first)
 if [ ${#aur_pkgs[@]} -gt 0 ]; then
-  if command_exists paru; then
+  if ensure_aur_helper && { command_exists paru || command_exists yay; }; then
     install_aur_packages_enhanced
   else
-    ui_warn "AUR helper 'paru' not found. Skipping AUR packages."
+    ui_warn "No AUR helper available. Skipping AUR packages."
   fi
 fi
 

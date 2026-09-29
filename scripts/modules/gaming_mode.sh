@@ -201,13 +201,17 @@ install_pacman_packages() {
 }
 
 install_aur_packages() {
-	if ! command -v paru >/dev/null; then ui_warn "paru is not installed. Skipping AUR packages."; return; fi
 	if [[ ${#aur_gaming_programs[@]} -eq 0 ]]; then ui_info "No AUR packages to install."; return; fi
-	ui_info "Installing ${#aur_gaming_programs[@]} AUR packages with paru..."
+	local _helper="paru"
+	if declare -f aur_helper >/dev/null 2>&1; then
+		_helper=$(aur_helper)
+	fi
+	if ! command -v "$_helper" >/dev/null; then ui_warn "No AUR helper found. Skipping AUR packages."; return; fi
+	ui_info "Installing ${#aur_gaming_programs[@]} AUR packages with $_helper..."
 
 	# Try batch install first
 	printf "${CYAN}Attempting batch installation...${RESET}\n"
-	if paru -S --noconfirm --needed "${aur_gaming_programs[@]}" >>"$INSTALL_LOG" 2>&1; then
+	if "$_helper" -S --noconfirm --needed "${aur_gaming_programs[@]}" >>"$INSTALL_LOG" 2>&1; then
 		printf "${GREEN} ✓ Batch installation successful${RESET}\n"
 		for pkg in "${aur_gaming_programs[@]}"; do
 			GAMING_INSTALLED+=("$pkg (AUR)")
